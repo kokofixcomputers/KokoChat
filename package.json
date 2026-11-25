@@ -60,6 +60,7 @@
     "files": [
       "dist/**",
       "electron/**",
+      "build/**",
       "package.json"
     ],
     "mac": {
