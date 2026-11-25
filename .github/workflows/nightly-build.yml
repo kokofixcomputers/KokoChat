@@ -97,7 +97,7 @@ jobs:
           BUNDLE=rust-app-rewrite/src-tauri/target/release/bundle
           ARCH=$(uname -m)
           cp "$BUNDLE"/dmg/*.dmg "rust-release/Koko-Rust-mac-${ARCH}.dmg"
-          ditto -c -k --keepParent "$BUNDLE/macos/Koko Rust.app" "rust-release/Koko-Rust-mac-${ARCH}.zip"
+          ditto -c -k --keepParent "$BUNDLE/macos/Koko.app" "rust-release/Koko-Rust-mac-${ARCH}.zip"
       - name: Collect Windows files
         if: matrix.name == 'windows'
         shell: bash

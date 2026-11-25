@@ -6,7 +6,7 @@ The Electron app in `../electron` stays until this one has been checked in every
 ## Run
 
     cargo tauri dev      # live reload
-    cargo tauri build    # makes src-tauri/target/release/bundle/macos/Koko Rust.app
+    cargo tauri build    # makes src-tauri/target/release/bundle/macos/Koko.app (installed name: Koko; same name as the Electron app, so migrate before replacing it)
     node tests/parity.cjs   # Code-mode file, git, undo and command results must match the Electron code
 
 Needs Rust, `cargo install tauri-cli`, and `npm install` in the parent folder.
