@@ -1,0 +1,9 @@
+# Copy to .dev.vars for `wrangler dev` (never commit .dev.vars)
+SMTP_PASS=your-smtp-password
+SMTP_HOST=smtp.example.com
+SMTP_PORT=465
+SMTP_SECURE=tls
+SMTP_USER=you@example.com
+SMTP_FROM="Koko Chat <you@example.com>"
+# For local testing without an SMTP server:
+# DEV_LOG_CODES=true

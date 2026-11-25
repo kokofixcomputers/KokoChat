@@ -1,0 +1,56 @@
+# Node
+/node_modules/
+/.pnp/
+.pnp.js
+
+# Build
+/dist/
+/build/
+/release/
+/target/
+/.cache/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Env
+.env
+.env.*
+.env.local
+.env.production.local
+.env.development.local
+
+# IDEs
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+
+# Electron
+/dist-electron/
+
+# Wrangler / Cloudflare Workers
+.wrangler/
+worker/.wrangler/
+
+# Claude
+.claude/
+
+# Misc
+public/*.map
+
+# Exclude npm lock if you intentionally want to (leave commented if you track it)
+# package-lock.json

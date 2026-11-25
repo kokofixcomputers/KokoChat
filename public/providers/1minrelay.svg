@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <!-- Blue → purple gradient for the relay diamond and flow lines -->
+    <linearGradient id="flow" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+
+    <!-- Subtle inner fill for the diamond -->
+    <linearGradient id="fill" x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.18"/>
+    </linearGradient>
+
+    <!-- Glow filter on the diamond border -->
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.8" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- ── Background ── -->
+  <rect width="64" height="64" rx="14" fill="#0f172a"/>
+
+  <!-- ── Left source node ── -->
+  <circle cx="6" cy="32" r="3.5" fill="#3b82f6"/>
+
+  <!-- ── Left connector line ── -->
+  <line x1="9.5" y1="32" x2="16" y2="32"
+        stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ── Diamond relay node ── -->
+  <!-- diamond points: top(32,16), right(48,32), bottom(32,48), left(16,32) -->
+  <polygon points="32,16 48,32 32,48 16,32" fill="url(#fill)"/>
+  <polygon points="32,16 48,32 32,48 16,32"
+           stroke="url(#flow)" stroke-width="2"
+           filter="url(#glow)"/>
+
+  <!-- ── "1" numeral inside diamond ──
+       Geometric path so rendering is font-independent.
+       Fits within the ~22×26 safe area centred on (32,32).
+  ── -->
+  <!-- main vertical bar -->
+  <rect x="29" y="19" width="6" height="26" rx="1.5" fill="white"/>
+  <!-- top-left flag (angled serif) -->
+  <path d="M22 26 L29 19 L29 26 Z" fill="white"/>
+  <!-- bottom base serif -->
+  <rect x="23" y="42" width="18" height="5" rx="1.5" fill="white"/>
+
+  <!-- ── Right connector line ── -->
+  <line x1="48" y1="32" x2="54.5" y2="32"
+        stroke="#8b5cf6" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ── Right arrowhead ── -->
+  <path d="M51 27 L58.5 32 L51 37"
+        stroke="#8b5cf6" stroke-width="2.5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

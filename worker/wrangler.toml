@@ -1,0 +1,36 @@
+name = "kokochat-sync"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# --- Bindings (create these first, see README.md) ---------------------------
+[[d1_databases]]
+binding = "DB"
+database_name = "kokochat"
+database_id = "cce92353-f421-454a-a3cb-987068e6d731"
+
+# Per-account storage cap in bytes (3 MB).
+# --- Non-secret config. Secrets (SMTP_PASS) go in `wrangler secret put` ----
+[vars]
+APP_NAME = "Koko Chat"
+# Comma-separated browser origins allowed to call this worker ("*" = any).
+ALLOWED_ORIGINS = "*"
+# Optional comma-separated allow-list of emails that may sign in. Empty = anyone.
+ALLOWED_EMAILS = ""
+# Comma-separated emails that get the admin panel (list/delete users, change quotas, suspend).
+# Admins can always sign in, even if ALLOWED_EMAILS is set.
+ADMIN_EMAILS = "koko@kokodev.cc"
+# SMTP: "tls" = implicit TLS (port 465), "starttls" = upgrade (port 587).
+SMTP_HOST = "mail0.serv00.com"
+SMTP_PORT = "465"
+SMTP_SECURE = "tls"
+SMTP_USER = "noreply.kokochat@kokodev.cc"
+SMTP_FROM = "Koko Chat <noreply.kokochat@kokodev.cc>"
+# Local testing only: print codes to the worker log instead of sending email.
+DEV_LOG_CODES = "false"
+QUOTA_BYTES = "3145728"
+# Sign in with 1minRelay. The client id is public; put the secret in with:  npx wrangler secret put ONEMIN_CLIENT_SECRET
+ONEMIN_CLIENT_ID = "oac_e0a5a36e0fa37ae6c53204f3f7fa1a25"
+# ONEMIN_HOST = "https://v4.kokodev.cc"
+# Redirect addresses the app may use (must be the ones you registered with the relay):
+# ONEMIN_REDIRECTS = "https://kokochat.pages.dev/oauth/1min,http://localhost:5173/oauth/1min"
