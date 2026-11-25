@@ -2,6 +2,7 @@ import { useStore } from '../store'
 import { koko, isDesktop } from './desktop'
 import { fetchModels, makeProvider } from './providers'
 import { toast } from './toast'
+import { effectiveSyncUrl } from './sync'
 
 /**
  * Sign in with 1minRelay (OAuth). A small window shows the relay's consent page; the one-time code that comes back is swapped for the
@@ -12,7 +13,7 @@ import { toast } from './toast'
 export const ONEMIN_REDIRECT_PROD = 'https://kokochat.pages.dev/oauth/1min'
 export const oneMinRedirect = () => (isDesktop() ? ONEMIN_REDIRECT_PROD : `${location.origin}/oauth/1min`)
 
-const syncBase = () => (useStore.getState().sync.url || (import.meta.env.VITE_SYNC_URL as string | undefined) || '').replace(/\/+$/, '')
+const syncBase = () => effectiveSyncUrl(useStore.getState().sync.url).replace(/\/+$/,'')
 const PENDING = 'koko:oauth1min:pending'
 const RESULT = 'koko:oauth1min:result'
 export const MESSAGE = 'koko:oauth:1min'

@@ -6,6 +6,7 @@ import type { Todo, ProjectAction, Memory, PluginRecord, Attachment, Chat, ChatS
 import type { UsageRow } from './lib/usage'
 import type { Overrides } from './lib/pricing'
 import { DEFAULT_PROMPTS } from './lib/prompts'
+import { effectiveSyncUrl } from './lib/sync'
 
 /** earlier built-in texts of prompts that gained fields, so unedited copies can be upgraded */
 const OLD_DEFAULTS: Record<string, string[]> = {
@@ -94,7 +95,7 @@ export type SandboxState = 'unknown' | 'active' | 'waking' | 'sleeping' | 'aslee
 export interface BaseEntry { rev: number; hash: string | null; data?: any }
 export interface SyncState { url: string; email: string; token: string; salt: string; auto: boolean; passphrase: string; lastSyncAt?: number; usage?: { used: number; quota: number }; admin?: boolean; base: Record<string, BaseEntry> }
 export interface SyncStatus { phase: 'idle' | 'syncing' | 'error'; message?: string; code?: string; at?: number }
-export const DEFAULT_SYNC: SyncState = { url: (import.meta.env.VITE_SYNC_URL as string | undefined) ?? '', email: '', token: '', salt: '', auto: true, passphrase: '', base: {} }
+export const DEFAULT_SYNC: SyncState = { url: '', email: '', token: '', salt: '', auto: true, passphrase: '', base: {} }
 
 export type Panel = { kind: 'artifact'; messageId: string; artifactId: string } | { kind: 'sources'; messageId: string }
 export type PanelState = Panel | null

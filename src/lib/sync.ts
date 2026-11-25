@@ -4,6 +4,17 @@ import { toast } from './toast'
 import { fmtBytes } from './utils'
 import { shrinkChatImages } from './images'
 
+export const DEFAULT_SYNC_URL = 'https://kokochat-sync.kokodev.workers.dev'
+
+function envSyncUrl(): string {
+  return (import.meta.env.VITE_SYNC_URL as string | undefined) ?? ''
+}
+
+export function effectiveSyncUrl(storeUrl?: string): string {
+  const u = (storeUrl || envSyncUrl() || DEFAULT_SYNC_URL) as string
+  return u.replace(/\s+|\/+$/g, '')
+}
+
 /* ------------------------------------------------------------------ *
  *  Sync engine
  *
