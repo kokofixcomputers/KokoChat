@@ -119,6 +119,7 @@ function registerIpc() {
   }
   ipcMain.handle('koko:fs:write', wrap(tracked(tools.writeFile)))
   ipcMain.handle('koko:fs:edit', wrap(tracked(tools.editFile)))
+  ipcMain.handle('koko:fs:append', wrap(tracked(tools.appendFile)))
   ipcMain.handle('koko:fs:write-base64', wrap(tracked(tools.writeBase64)))
   ipcMain.handle('koko:fs:tree', wrap(tools.readTree))
   ipcMain.handle('koko:fs:readraw', wrap(tools.readRaw))

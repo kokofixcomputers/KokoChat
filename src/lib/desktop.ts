@@ -19,8 +19,9 @@ export interface KokoApi {
   openFolder: (p: string) => Promise<string | void>
   fs: {
     read: (a: Paths & { path: string; offset?: number; limit?: number }) => Promise<IpcResult<{ path: string; totalLines: number; from: number; to: number; text: string; truncated: boolean }>>
-    write: (a: Paths & { turn?: string; path: string; content: string }) => Promise<IpcResult<{ path: string; created: boolean; bytes: number; diff: Diff }>>
-    edit: (a: Paths & { turn?: string; path: string; oldString: string; newString: string; replaceAll?: boolean }) => Promise<IpcResult<{ path: string; replaced: number; diff: Diff }>>
+    write: (a: Paths & { turn?: string; path: string; content: string; guard?: boolean; overwrite?: boolean }) => Promise<IpcResult<{ path: string; created: boolean; unchanged?: boolean; bytes: number; diff: Diff; totalLines?: number; preview?: string; syntax?: string }>>
+    append: (a: Paths & { turn?: string; path: string; content: string; position?: 'start' | 'end' }) => Promise<IpcResult<{ path: string; diff: Diff; bytes: number; totalLines: number; unchanged?: boolean; preview?: string; syntax?: string }>>
+    edit: (a: Paths & { turn?: string; path: string; oldString: string; newString: string; replaceAll?: boolean }) => Promise<IpcResult<{ path: string; replaced: number; diff: Diff; totalLines?: number; matched?: string; syntax?: string }>>
     writeBase64: (a: Paths & { turn?: string; path: string; base64: string }) => Promise<IpcResult<{ path: string; bytes: number; created: boolean }>>
     list: (a: Paths & { path?: string; depth?: number }) => Promise<IpcResult<{ path: string; text: string; count: number }>>
     find: (a: Paths & { pattern: string; path?: string }) => Promise<IpcResult<{ path: string; files: string[]; truncated: boolean }>>

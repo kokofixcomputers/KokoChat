@@ -10,6 +10,22 @@ import { TODO_TOOL, isTodoTool, runTodoTool } from './todos'
 /* ------------------------------- tool definitions ------------------------------- */
 const obj = (properties: Record<string, unknown>, required: string[] = []) => ({ type: 'object', properties, required, additionalProperties: false })
 
+/* What the agent has already written in this task, so a long job does not redo finished files. */
+type Touch = { n: number; how: string }
+const touched = new Map<string, Map<string, Touch>>()
+function touch(turn: string | undefined, path: string, how: string): { prior: Touch | undefined; ledger: string } {
+  const key = turn || 'none'
+  if (touched.size > 40) touched.delete(touched.keys().next().value as string)
+  const m = touched.get(key) ?? new Map<string, Touch>()
+  touched.set(key, m)
+  const prior = m.get(path)
+  m.set(path, { n: (prior?.n ?? 0) + 1, how })
+  const list = [...m.entries()].slice(-30).map(([p, t]) => `${p}${t.n > 1 ? ` (${t.n}x)` : ''}`).join(', ')
+  return { prior, ledger: `Files you have already changed in this task: ${list}. Do not write these again unless something in them is actually wrong; move on to the next part of the job.` }
+}
+const syn = (e: string | undefined, path: string) => (e ? `\n⚠ The syntax check of ${path} FAILED, so this file is broken right now:\n${e}\nFix it before doing anything else, and do not commit or push until it is fixed.` : '')
+const repeatNote = (path: string, prior: Touch | undefined) => prior ? `\nNote: you already ${prior.how} ${path} earlier in this task. If you are redoing the same content, stop: it is done.` : ''
+
 export const CODE_TOOLS: ToolDef[] = [
   ...BROWSER_TOOLS,
   ...ACTION_TOOLS,
@@ -21,13 +37,18 @@ export const CODE_TOOLS: ToolDef[] = [
   },
   {
     name: 'edit_file',
-    description: 'Change a file by replacing exact text. old_string must match the file exactly (whitespace included) and be unique, unless replace_all is set. Prefer this over rewriting whole files.',
+    description: 'Change a file by replacing exact text. old_string must match the file exactly (whitespace included) and be unique, unless replace_all is set. Copy old_string from the file text only: do not include the line numbers that read_file shows in front of each line. Prefer this over rewriting whole files.',
     parameters: obj({ path: { type: 'string' }, old_string: { type: 'string', description: 'The exact text to replace. Include a few surrounding lines so it is unique.' }, new_string: { type: 'string', description: 'The replacement text.' }, replace_all: { type: 'boolean', description: 'Replace every occurrence (for renames).' } }, ['path', 'old_string', 'new_string']),
   },
   {
+    name: 'append_file',
+    description: 'Add text to the END of an existing file (or the start, with position "start"), keeping everything already in it. Use this to add a new function, constant, export, route or section. To add something in the middle, use edit_file with a nearby line as old_string and put that line plus your addition in new_string.',
+    parameters: obj({ path: { type: 'string' }, content: { type: 'string', description: 'Only the new text to add, not the existing file.' }, position: { type: 'string', enum: ['end', 'start'], description: 'Default end.' } }, ['path', 'content']),
+  },
+  {
     name: 'write_file',
-    description: 'Create a new file, or completely replace an existing one, with the given content. Parent folders are created. For small changes to an existing file use edit_file instead.',
-    parameters: obj({ path: { type: 'string' }, content: { type: 'string', description: 'The full file content.' } }, ['path', 'content']),
+    description: 'Create a NEW file with the given full content. Parent folders are created. Do not use this to add to or change an existing file: it replaces everything in it, so use append_file to add something and edit_file to change a part. Writes that would throw away most of an existing file are refused unless overwrite is true.',
+    parameters: obj({ path: { type: 'string' }, content: { type: 'string', description: 'The full file content.' }, overwrite: { type: 'boolean', description: 'Set only when you really intend to replace the whole existing file (read it first).' } }, ['path', 'content']),
   },
   {
     name: 'list_files',
@@ -80,6 +101,7 @@ export function describeCode(name: string, a: Record<string, any>, meta?: Record
   switch (name) {
     case 'read_file': return { icon: 'read', present: 'Reading', past: 'Read', failed: "Couldn't read", subject: file || 'a file', extra: a.offset ? `from line ${a.offset}` : undefined }
     case 'edit_file': return { icon: 'edit', present: 'Editing', past: 'Edited', failed: "Couldn't edit", subject: file || 'a file' }
+    case 'append_file': return { icon: 'edit', present: 'Adding to', past: 'Added to', failed: "Couldn't add to", subject: file || 'a file' }
     case 'write_file': return meta?.created === false ? { icon: 'edit', present: 'Rewriting', past: 'Rewrote', failed: "Couldn't write", subject: file || 'a file' } : { icon: 'create', present: 'Creating', past: 'Created', failed: "Couldn't create", subject: file || 'a file' }
     case 'list_files': return { icon: 'list', present: 'Looking at', past: 'Looked at', failed: "Couldn't list", subject: path && path !== '.' ? path : 'the project' }
     case 'find_files': return { icon: 'find', present: 'Finding files', past: 'Found files', failed: "Couldn't search for files", subject: a.pattern ? String(a.pattern) : undefined }
@@ -152,16 +174,30 @@ export async function runCodeTool(name: string, a: Record<string, any>, ctx: Ctx
     const r = await withFs(ctx, 'write', path, (o) => k.fs.edit({ cwd, path, oldString: String(a.old_string ?? ''), newString: String(a.new_string ?? ''), replaceAll: !!a.replace_all, allowOutside: o, turn: ctx.turn }))
     meta({ path: r.path, diff: r.diff, summary: diffSummary(r.diff) })
     const ctxLines = r.diff.lines.slice(0, 60).map((l) => `${l.t === ' ' ? ' ' : l.t}${l.n}\t${l.s}`).join('\n')
-    return { output: `Edited ${r.path}: replaced ${r.replaced} occurrence${r.replaced === 1 ? '' : 's'} (${diffSummary(r.diff)}).\n${ctxLines}` }
+    const t = touch(ctx.turn, r.path, 'edited')
+    return { output: `Edited ${r.path}: replaced ${r.replaced} occurrence${r.replaced === 1 ? '' : 's'} (${diffSummary(r.diff)})${r.matched ? `; matched ${r.matched}` : ''}.\n${ctxLines}${syn(r.syntax, r.path)}\n${t.ledger}` }
+  }
+
+  if (name === 'append_file') {
+    if (!path) throw new Error('path is required')
+    meta({ path })
+    await requireApproval(ctx.chatId, ctx.callId, { kind: 'edit', title: `Add to ${baseName(path)}`, detail: path }, ctx.signal, ctx.update)
+    const r = await withFs(ctx, 'write', path, (o) => k.fs.append({ cwd, path, content: String(a.content ?? ''), position: a.position === 'start' ? 'start' : 'end', allowOutside: o, turn: ctx.turn }))
+    meta({ path: r.path, diff: r.diff, summary: diffSummary(r.diff) })
+    if (r.unchanged) return { output: `No change: ${r.path} already contains this text, so nothing was added. It is done; move on.\n${touch(ctx.turn, r.path, 'added to').ledger}` }
+    const t = touch(ctx.turn, r.path, 'added to')
+    return { output: `Added to ${a.position === 'start' ? 'the start' : 'the end'} of ${r.path} (${diffSummary(r.diff)}). The file now has ${r.totalLines} lines; everything that was there is kept.${repeatNote(r.path, t.prior)}\n${r.preview ? `Around what you added:\n${r.preview}` : ''}${syn(r.syntax, r.path)}\n${t.ledger}` }
   }
 
   if (name === 'write_file') {
     if (!path) throw new Error('path is required')
     meta({ path })
     await requireApproval(ctx.chatId, ctx.callId, { kind: 'edit', title: `Write ${baseName(path)}`, detail: path }, ctx.signal, ctx.update)
-    const r = await withFs(ctx, 'write', path, (o) => k.fs.write({ cwd, path, content: String(a.content ?? ''), allowOutside: o, turn: ctx.turn }))
+    const r = await withFs(ctx, 'write', path, (o) => k.fs.write({ cwd, path, content: String(a.content ?? ''), guard: true, overwrite: a.overwrite === true, allowOutside: o, turn: ctx.turn }))
     meta({ path: r.path, created: r.created, diff: r.diff, summary: r.created ? `${r.diff.added} lines` : diffSummary(r.diff) })
-    return { output: `${r.created ? 'Created' : 'Overwrote'} ${r.path} (${r.bytes} bytes).` }
+    if (r.unchanged) return { output: `No change: ${r.path} already has exactly this content. You already wrote it; it is done, move on.\n${touch(ctx.turn, r.path, 'wrote').ledger}` }
+    const t = touch(ctx.turn, r.path, 'wrote')
+    return { output: `${r.created ? 'Created' : 'Overwrote'} ${r.path} (${r.bytes} bytes, ${r.totalLines ?? '?'} lines).${repeatNote(r.path, t.prior)}\n${r.preview ? `File now starts:\n${r.preview}` : ''}${syn(r.syntax, r.path)}\n${t.ledger}` }
   }
 
   if (name === 'list_files') {

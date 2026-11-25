@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('koko', {
     read: call('koko:fs:read'),
     write: call('koko:fs:write'),
     edit: call('koko:fs:edit'),
+    append: call('koko:fs:append'),
     writeBase64: call('koko:fs:write-base64'),
     list: call('koko:fs:list'),
     find: call('koko:fs:find'),

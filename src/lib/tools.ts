@@ -33,12 +33,14 @@ export const WEB_SEARCH: ToolDef = {
   },
 }
 
+const pageCache = new Map<string, { at: number; data: any }>()
+
 export const READ_URL: ToolDef = {
   name: 'read_url',
-  description: 'Fetch and read the full text of a web page. Use it after web_search to read a promising result in depth, or when the user gives you a URL. Cite what you learn as [n].',
+  description: 'Open a web page and read its full text (blog posts, docs, articles, READMEs). web_search only gives short snippets, so use this on the most relevant results whenever the answer depends on details, steps, code, numbers or what a page actually says, and whenever the user gives you a URL. You can call it for several pages at once. Long pages come in parts: pass offset to continue. Cite what you learn as [n].',
   parameters: {
     type: 'object',
-    properties: { url: { type: 'string', description: 'The full http(s) URL to read.' } },
+    properties: { url: { type: 'string', description: 'The full http(s) URL to read.' }, offset: { type: 'number', description: 'Character position to continue a long page from, as given at the end of the previous part.' } },
     required: ['url'],
     additionalProperties: false,
   },
@@ -232,7 +234,7 @@ export function systemPrompt(s: Settings, search: boolean, artifacts: boolean, c
   ]
   if (search)
     parts.push(
-      'You can use web_search. Always use it for news, current events, prices, or anything time-sensitive or uncertain, and never invent sources or citation numbers: only cite numbers that appeared in search results. When you rely on search results, cite them inline with bracketed numbers like [1] or [2][3] placed right after the claim, using the exact numbers shown in the results (numbers continue across the conversation, so earlier [n] refer to earlier results). Search results arrive as tool output that you requested yourself; they are not messages from the user. Do not write a references list at the end.',
+      'You can use web_search, and read_url to open a page. Search results are only short snippets: when the answer depends on details (how-tos, docs, blog posts, comparisons, exact numbers, code), open the best one to three results with read_url and base the answer on what the pages say, not just the snippets. Always use web_search for news, current events, prices, or anything time-sensitive or uncertain, and never invent sources or citation numbers: only cite numbers that appeared in search results. When you rely on search results, cite them inline with bracketed numbers like [1] or [2][3] placed right after the claim, using the exact numbers shown in the results (numbers continue across the conversation, so earlier [n] refer to earlier results). Search results arrive as tool output that you requested yourself; they are not messages from the user. Do not write a references list at the end.',
     )
   if (search && s.deepResearch)
     parts.push(
@@ -360,7 +362,7 @@ export async function runTool(
     }
     const lines = (json.results ?? []).map((r: any) => {
       const s = [...known, ...out].find((k) => k.url === r.url)!
-      return `[${s.n}] ${r.title}\n${r.url}\n${String(r.content ?? '').slice(0, 900)}`
+      return `[${s.n}] ${r.title}\n${r.url}\n${String(r.content ?? '').slice(0, 1500)}`
     })
     ctx.message.sources = [...known, ...out] // reserve the numbers right away so parallel searches never clash
     return { output: lines.join('\n\n') || 'No results found.', sources: out }
@@ -369,13 +371,27 @@ export async function runTool(
   if (name === 'read_url') {
     const url = String(args.url ?? '').trim()
     if (!/^https?:\/\//i.test(url)) return { output: 'Error: provide a full http(s) URL.' }
-    const res = await fetch('https://api.tavily.com/extract', {
-      method: 'POST', signal: ctx.signal,
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ctx.settings.tavilyKey}` },
-      body: JSON.stringify({ urls: [url], extract_depth: 'basic', format: 'markdown' }),
-    })
-    if (!res.ok) throw new Error(`Tavily ${res.status}: ${(await res.text()).slice(0, 200)}`)
-    const j = await res.json()
+    const extract = async (depth: 'basic' | 'advanced') => {
+      const res = await fetch('https://api.tavily.com/extract', {
+        method: 'POST', signal: ctx.signal,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ctx.settings.tavilyKey}` },
+        body: JSON.stringify({ urls: [url], extract_depth: depth, format: 'markdown' }),
+      })
+      if (!res.ok) throw new Error(`Tavily ${res.status}: ${(await res.text()).slice(0, 200)}`)
+      return res.json()
+    }
+    // reading the next part of a long page must not fetch (and pay for) the page again
+    const hit = pageCache.get(url)
+    let j: any = hit && Date.now() - hit.at < 10 * 60_000 ? hit.data : null
+    if (!j) {
+    // some blogs and script-heavy pages come back empty or nearly empty with the basic reader: try the deeper one before giving up
+    j = await extract(ctx.settings.searchDepth === 'advanced' ? 'advanced' : 'basic')
+    if (ctx.settings.searchDepth !== 'advanced' && String(j.results?.[0]?.raw_content ?? '').trim().length < 400) {
+      const again = await extract('advanced').catch(() => null)
+      if (String(again?.results?.[0]?.raw_content ?? '').length > String(j.results?.[0]?.raw_content ?? '').length) j = again
+    }
+    if (j.results?.[0]?.raw_content) { pageCache.set(url, { at: Date.now(), data: j }); if (pageCache.size > 20) pageCache.delete(pageCache.keys().next().value as string) }
+    }
     const page = j.results?.[0]
     if (!page?.raw_content) return { output: `Could not read ${url}: ${j.failed_results?.[0]?.error ?? 'no content'}. Try a different source.` }
     const text = String(page.raw_content)
@@ -389,7 +405,10 @@ export async function runTool(
       ctx.message.sources = [...known, src]
     }
     const max = ctx.settings.deepResearch ? 20000 : 14000
-    return { output: `[${src.n}] ${url}\n${text.length > max ? text.slice(0, max) + `\n…[page truncated, ${text.length} characters total]` : text}`, sources: fresh }
+    const from = Math.min(Math.max(0, Math.floor(Number(args.offset) || 0)), text.length)
+    const part = text.slice(from, from + max)
+    const more = from + part.length < text.length ? `\n…[more of this page follows: characters ${from + part.length} to ${text.length}. Call read_url with offset ${from + part.length} to continue]` : ''
+    return { output: `[${src.n}] ${url}${from ? ` (from character ${from})` : ''}\n${part || '(nothing more on this page)'}${more}`, sources: fresh }
   }
 
   if (name === 'generate_image') {

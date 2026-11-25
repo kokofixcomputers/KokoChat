@@ -72,29 +72,147 @@ function makeDiff(oldText, newText) {
   return { added: eb - s, removed: ea - s, lines: lines.length > cap ? lines.slice(0, cap) : lines, truncated: lines.length > cap, firstLine: s + 1 }
 }
 
-async function writeFile({ cwd, path: p, content, allowOutside }) {
+/** Numbered lines of a file, so the AI can see what is really in it after a write. */
+function numbered(text, from, to) {
+  const lines = text.split('\n')
+  const a = Math.max(1, from), b = Math.min(lines.length, to)
+  return lines.slice(a - 1, b).map((l, i) => `${a + i}\t${l.length > 200 ? l.slice(0, 200) + '…' : l}`).join('\n')
+}
+function preview(text, mode, addedFrom) {
+  const n = text.split('\n').length
+  if (mode === 'around' && addedFrom) return numbered(text, addedFrom - 3, addedFrom + 22) + (n > addedFrom + 22 ? `\n…(${n - addedFrom - 22} more lines)` : '')
+  return numbered(text, 1, 30) + (n > 30 ? `\n…(${n - 30} more lines; read_file to see them)` : '')
+}
+
+/** A quick real check of what was written, for file types that have a cheap checker. Returns an error text, or '' when fine / not checkable. */
+function syntaxCheck(abs, text) {
+  const ext = path.extname(abs).toLowerCase()
+  if (ext === '.json') { try { JSON.parse(text) } catch (e) { return String(e.message).slice(0, 300) } return Promise.resolve('') }
+  const run = (cmd, args, env) => new Promise((resolve) => execFile(cmd, args, { timeout: 6000, maxBuffer: 100_000, env: { ...process.env, ...(env || {}) } }, (err, _o, stderr) => resolve(err ? String(stderr || err.message).split('\n').filter((l) => !/^\s+at |^Node\.js v|^\s*$/.test(l)).join('\n').replace(/^\S*\/([^/\s]+:\d+)/gm, '$1').slice(0, 500) : '')))
+  if (ext === '.cjs' || ext === '.mjs' || ext === '.js') {
+    return run(process.execPath, ['--check', abs], { ELECTRON_RUN_AS_NODE: '1' }).then((e) => (/Cannot use import statement|Unexpected token 'export'|Cannot use 'import\.meta'|await is only valid/.test(e) ? '' : e))
+  }
+  if (ext === '.py') return run('python3', ['-m', 'py_compile', abs]).then((e) => (/No such file or directory.*python3|not found/i.test(e) ? '' : e))
+  if (ext === '.sh') return run('bash', ['-n', abs])
+  return Promise.resolve('')
+}
+
+/** How much of the old file would survive: share of its meaningful lines that are still present in the new text. */
+function keptShare(old, next) {
+  const keep = new Set(next.split('\n').map((l) => l.trim()).filter(Boolean))
+  const lines = old.split('\n').map((l) => l.trim()).filter((l) => l.length > 1)
+  if (!lines.length) return { total: 0, lost: 0 }
+  const lost = lines.filter((l) => !keep.has(l)).length
+  return { total: lines.length, lost }
+}
+
+async function writeFile({ cwd, path: p, content, allowOutside, guard, overwrite }) {
   const { abs, rel } = resolveIn(cwd, p, allowOutside)
   let old = null
   try { const st = await fsp.stat(abs); if (st.isDirectory()) throw new ToolError(`${rel} is a folder.`, 'EISDIR'); old = await fsp.readFile(abs, 'utf8') } catch (e) { if (e instanceof ToolError) throw e }
-  await fsp.mkdir(path.dirname(abs), { recursive: true })
-  await fsp.writeFile(abs, String(content ?? ''), 'utf8')
   const text = String(content ?? '')
-  return { path: rel, created: old === null, bytes: Buffer.byteLength(text), diff: makeDiff(old ?? '', text) }
+  // When the AI replaces an existing file, refuse if that would throw away most of what was there (the usual mistake is
+  // "add one thing" done as a rewrite that keeps only the new thing). It can still pass overwrite:true when it means it.
+  if (guard && old !== null && !overwrite) {
+    const { total, lost } = keptShare(old, text)
+    if (total >= 8 && lost / total > 0.35) {
+      throw new ToolError(`Refused: ${rel} already has ${old.split('\n').length} lines and this write would delete ${lost} of its ${total} lines. Nothing was changed. To ADD something, use append_file (adds to the end) or edit_file (insert next to existing text). To change one part, use edit_file. Only if you really mean to replace the whole file, read it first and call write_file again with overwrite set to true.`, 'CLOBBER')
+    }
+  }
+  if (old !== null && old === text) return { path: rel, created: false, unchanged: true, bytes: Buffer.byteLength(text), diff: makeDiff(old, text) }
+  await fsp.mkdir(path.dirname(abs), { recursive: true })
+  await fsp.writeFile(abs, text, 'utf8')
+  return { path: rel, created: old === null, bytes: Buffer.byteLength(text), diff: makeDiff(old ?? '', text), totalLines: text.split('\n').length, preview: preview(text, 'head'), syntax: await syntaxCheck(abs, text) }
+}
+
+/* Finding the text to replace. The AI copies from read_file output, which has line numbers in front, and it often loses tabs, trailing
+   spaces, Windows line endings or indentation on the way. Try the exact text first, then forgive those slips one at a time. */
+const stripNums = (t) => { const ls = t.split('\n'); return ls.filter((l) => l.trim()).length && ls.every((l) => !l.trim() || /^\s*\d+(\t| {1,2}\|? ?)/.test(l)) ? ls.map((l) => l.replace(/^\s*\d+(\t| {1,2}\|? ?)/, '')).join('\n') : t }
+const indentOf = (l) => /^[ \t]*/.exec(l)[0]
+
+function locate(old, find, repl) {
+  const crlf = old.includes('\r\n')
+  const norm = (t) => (crlf ? t.replace(/\r?\n/g, '\r\n') : t.replace(/\r\n/g, '\n'))
+  const tries = [{ f: find, r: repl, how: '' }]
+  const nf = stripNums(find)
+  if (nf !== find) tries.push({ f: nf, r: stripNums(repl), how: 'ignoring the line numbers copied from read_file' })
+  for (const t of [...tries]) if (norm(t.f) !== t.f) tries.push({ f: norm(t.f), r: norm(t.r), how: 'ignoring a line-ending difference' })
+  for (const t of tries) { const c = old.split(t.f).length - 1; if (c > 0) return { find: t.f, repl: t.r, count: c, how: t.how } }
+  // line by line, ignoring indentation and trailing spaces
+  const eol = crlf ? '\r\n' : '\n'
+  const oldLines = old.split('\n').map((l) => l.replace(/\r$/, ''))
+  const want = nf.split('\n').map((l) => l.replace(/\r$/, ''))
+  while (want.length && !want[want.length - 1].trim()) want.pop()
+  while (want.length && !want[0].trim()) want.shift()
+  if (!want.length) return null
+  const key = (l) => l.trim().replace(/\s+/g, ' ')
+  const wk = want.map(key)
+  const hits = []
+  for (let i = 0; i + want.length <= oldLines.length; i++) {
+    let ok = true
+    for (let j = 0; j < want.length && ok; j++) if (key(oldLines[i + j]) !== wk[j]) ok = false
+    if (ok) { hits.push(i); i += want.length - 1 }
+  }
+  if (!hits.length) return null
+  return { fuzzy: true, hits, want, oldLines, eol, count: hits.length, how: 'ignoring whitespace and indentation differences' }
+}
+
+/** The part of the file that looks most like what the AI asked for, shown with line numbers so it can copy it exactly. */
+function nearest(old, find) {
+  const lines = old.split('\n')
+  const probes = stripNums(find).split('\n').map((l) => l.trim()).filter((l) => l.length > 3)
+  for (const probe of [...probes].sort((a, b) => b.length - a.length).slice(0, 4)) {
+    const k = probe.replace(/\s+/g, ' ')
+    const i = lines.findIndex((l) => { const x = l.replace(/\s+/g, ' ').trim(); return x.includes(k) || (x.length >= 6 && k.includes(x)) })
+    if (i >= 0) return `The closest match in the file is around line ${i + 1}. This is what is actually there (copy from it, keep its exact spacing):\n${numbered(old, Math.max(1, i - 1), i + 12)}`
+  }
+  return `None of the lines of your old_string were found anywhere in the file (it has ${lines.length} lines). The file may have changed since you read it: call read_file again, then copy a short, unique piece from the result.`
 }
 
 async function editFile({ cwd, path: p, oldString, newString, replaceAll, allowOutside }) {
   const { abs, rel } = resolveIn(cwd, p, allowOutside)
   let old
   try { old = await fsp.readFile(abs, 'utf8') } catch { throw new ToolError(`No such file: ${rel}. Use write_file to create it.`, 'ENOENT') }
-  const find = String(oldString ?? ''), repl = String(newString ?? '')
-  if (!find) throw new ToolError('old_string is empty. To create or overwrite a file use write_file.', 'EMPTY')
-  if (find === repl) throw new ToolError('old_string and new_string are identical.', 'SAME')
-  const count = old.split(find).length - 1
-  if (count === 0) throw new ToolError(`old_string was not found in ${rel}. Read the file again and copy the text exactly, including whitespace.`, 'NOTFOUND')
-  if (count > 1 && !replaceAll) throw new ToolError(`old_string appears ${count} times in ${rel}. Add more surrounding lines to make it unique, or set replace_all.`, 'AMBIGUOUS')
-  const next = replaceAll ? old.split(find).join(repl) : old.replace(find, () => repl)
+  const find0 = String(oldString ?? ''), repl0 = String(newString ?? '')
+  if (!find0) throw new ToolError('old_string is empty. To create or overwrite a file use write_file.', 'EMPTY')
+  if (find0 === repl0) throw new ToolError('old_string and new_string are identical.', 'SAME')
+  const m = locate(old, find0, repl0)
+  if (!m) throw new ToolError(`old_string was not found in ${rel}. ${nearest(old, find0)}`, 'NOTFOUND')
+  if (m.count > 1 && !replaceAll) throw new ToolError(`old_string appears ${m.count} times in ${rel}. Add more surrounding lines to make it unique, or set replace_all.`, 'AMBIGUOUS')
+  let next
+  if (m.fuzzy) {
+    const replLines = stripNums(repl0).split('\n').map((l) => l.replace(/\r$/, ''))
+    const out = []
+    let at = 0
+    const hits = replaceAll ? m.hits : [m.hits[0]]
+    for (const h of hits) {
+      out.push(...m.oldLines.slice(at, h))
+      // the replacement takes the file's indentation where the AI's copy had a different one
+      const fileInd = indentOf(m.oldLines[h]), askedInd = indentOf(m.want[0])
+      for (const l of replLines) out.push(!l.trim() ? l : askedInd === fileInd ? l : l.startsWith(askedInd) ? fileInd + l.slice(askedInd.length) : fileInd + l.trimStart())
+      at = h + m.want.length
+    }
+    out.push(...m.oldLines.slice(at))
+    next = out.join(m.eol)
+  } else {
+    next = replaceAll ? old.split(m.find).join(m.repl) : old.replace(m.find, () => m.repl)
+  }
   await fsp.writeFile(abs, next, 'utf8')
-  return { path: rel, replaced: replaceAll ? count : 1, diff: makeDiff(old, next) }
+  return { path: rel, replaced: replaceAll ? m.count : 1, diff: makeDiff(old, next), totalLines: next.split('\n').length, matched: m.how || undefined, syntax: await syntaxCheck(abs, next) }
+}
+
+async function appendFile({ cwd, path: p, content, position, allowOutside }) {
+  const { abs, rel } = resolveIn(cwd, p, allowOutside)
+  let old
+  try { old = await fsp.readFile(abs, 'utf8') } catch { throw new ToolError(`No such file: ${rel}. Use write_file to create it.`, 'ENOENT') }
+  const add = String(content ?? '')
+  if (!add) throw new ToolError('content is empty.', 'EMPTY')
+  if (add.trim().length >= 12 && old.includes(add.trim())) return { path: rel, unchanged: true, diff: makeDiff(old, old), bytes: Buffer.byteLength(old), totalLines: old.split('\n').length }
+  const nl = (t) => (t.endsWith('\n') || !t ? t : t + '\n')
+  const next = position === 'start' ? nl(add) + old : (old && !old.endsWith('\n') ? old + '\n' : old) + nl(add)
+  await fsp.writeFile(abs, next, 'utf8')
+  const addedFrom = position === 'start' ? 1 : old.split('\n').length - (old.endsWith('\n') ? 1 : 0) + 1
+  return { path: rel, diff: makeDiff(old, next), bytes: Buffer.byteLength(next), totalLines: next.split('\n').length, preview: preview(next, 'around', addedFrom), syntax: await syntaxCheck(abs, next) }
 }
 
 async function writeBase64({ cwd, path: p, base64, allowOutside }) {
@@ -461,4 +579,4 @@ async function gitChangeText({ cwd }) {
 module.exports = {
   gitStage, gitUnstage, gitDiscard, gitCommit, gitBranches, gitCheckout, gitPush, gitPull, gitLog, gitChangeText, gitBranchChanges,
   readTree, readRaw, gitStatus, gitDiff,
-  loadShellEnv, getShellEnv: () => shellEnv, ToolError, resolveIn, readFile, writeFile, editFile, writeBase64, listFiles, findFiles, searchCode, runCommand, killCommand, projectContext, globToRegex, makeDiff }
+  loadShellEnv, getShellEnv: () => shellEnv, ToolError, resolveIn, readFile, writeFile, appendFile, editFile, writeBase64, listFiles, findFiles, searchCode, runCommand, killCommand, projectContext, globToRegex, makeDiff }

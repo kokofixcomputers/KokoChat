@@ -90,7 +90,7 @@ function assistantTurns(m: Message): Turn[] {
   for (const b of m.blocks ?? []) {
     if (b.type === 'text' && b.text.trim()) turns.push({ kind: 'text', text: b.text })
     else if (b.type === 'tool' && b.name !== 'create_artifact' && b.name !== 'create_presentation' && b.name !== 'generate_image' && b.name !== 'generate_video' && b.status !== 'running')
-      turns.push({ kind: 'tool', callId: b.callId, name: b.name, args: b.args || '{}', output: clip(b.result ?? '', 6000) })
+      turns.push({ kind: 'tool', callId: b.callId, name: b.name, args: b.status === 'error' ? (b.args || '{}') : slimArgs(b.name, b.args || '{}'), output: clip(b.result ?? '', 6000) })
   }
   const arts = (m.artifacts ?? [])
     .map((a) => a.kind === 'video' ? `[Video you generated earlier — id: ${a.id}, title: "${a.title}", prompt: ${a.meta?.prompt ?? ''}]` : a.kind === 'image' ? `[Image you generated earlier — id: ${a.id}, title: "${a.title}", prompt: ${a.meta?.prompt ?? ''}]` : `[Artifact you created earlier — id: ${a.id}, title: "${a.title}", kind: ${a.kind}, version ${a.version}]\n\`\`\`\`\n${clip(a.content, 14000)}\n\`\`\`\``)
@@ -171,6 +171,40 @@ function trimShots(shots: { content: any[] }[]) {
   for (const s of shots.slice(0, -KEEP_SHOTS)) if (s.content.some((c) => c.type !== 'input_text' && c.type !== 'text')) s.content = [{ type: s.content[0]?.type === 'input_text' ? 'input_text' : 'text', text: '[An earlier screenshot was removed to save space.]' }]
 }
 const imageNote = (n: number) => `The ${n === 1 ? 'screenshot' : 'screenshots'} you asked for ${n === 1 ? 'is' : 'are'} attached. This is the tool result, not a message from the user.`
+
+
+/* ---- keep a long coding run from drowning in its own file contents ----
+   Every step resends the whole conversation, and a write_file call carries the entire file. After a few files the early writes
+   (and the model's memory of them) get pushed out of the model's real window or lost in the middle. So once a write has succeeded and
+   a few newer calls exist, its file text is replaced with a short note; the call, the path and the result stay. */
+const KEEP_FULL_CALLS = 3
+const SLIM_TOOLS = new Set(['write_file', 'append_file', 'edit_file'])
+export function slimArgs(name: string, args: string): string {
+  if (!SLIM_TOOLS.has(name) || args.length < 700) return args
+  let j: any
+  try { j = JSON.parse(args) } catch { return args }
+  const note = (t: string) => `[${t.split('\n').length} lines, ${t.length} characters; text left out of the history to save space. It was applied successfully; read_file the file if you need to see it.]`
+  if (typeof j.content === 'string' && j.content.length > 500) j.content = note(j.content)
+  for (const k of ['old_string', 'new_string']) if (typeof j[k] === 'string' && j[k].length > 900) j[k] = j[k].slice(0, 300) + ' …[left out]… ' + j[k].slice(-200)
+  return JSON.stringify(j)
+}
+const failed = (out: unknown) => typeof out === 'string' && /^(Error|Refused)/.test(out)
+
+function slimResponsesConvo(convo: any[]) {
+  const calls = convo.filter((x) => x.type === 'function_call')
+  const out = new Map(convo.filter((x) => x.type === 'function_call_output').map((x) => [x.call_id, x.output]))
+  for (const c of calls.slice(0, -KEEP_FULL_CALLS)) if (!failed(out.get(c.call_id))) c.arguments = slimArgs(c.name, c.arguments ?? '')
+}
+function slimChatMsgs(msgs: any[]) {
+  const calls = msgs.filter((x) => x.role === 'assistant' && x.tool_calls).flatMap((x) => x.tool_calls as any[])
+  const out = new Map(msgs.filter((x) => x.role === 'tool').map((x) => [x.tool_call_id, x.content]))
+  for (const c of calls.slice(0, -KEEP_FULL_CALLS)) if (!failed(out.get(c.id))) c.function.arguments = slimArgs(c.function.name, c.function.arguments ?? '')
+}
+function slimAnthropicMsgs(msgs: any[]) {
+  const uses = msgs.filter((x) => x.role === 'assistant' && Array.isArray(x.content)).flatMap((x) => x.content.filter((b: any) => b.type === 'tool_use'))
+  const out = new Map(msgs.filter((x) => x.role === 'user' && Array.isArray(x.content)).flatMap((x) => x.content.filter((b: any) => b.type === 'tool_result')).map((b: any) => [b.tool_use_id, typeof b.content === 'string' ? b.content : b.content?.[0]?.text]))
+  for (const u of uses.slice(0, -KEEP_FULL_CALLS)) if (!failed(out.get(u.id)) && u.input && typeof u.input === 'object') u.input = JSON.parse(slimArgs(u.name, JSON.stringify(u.input)))
+}
 
 const hasSandbox = (tools: ToolDef[]) => tools.some((t) => t.name === 'sandbox_exec')
 
@@ -291,6 +325,7 @@ async function runResponses(o: RunOpts) {
     const shotMsg = picked.length ? { role: 'user', content: [{ type: 'input_text', text: imageNote(picked.length) }, ...picked.map((u) => ({ type: 'input_image', image_url: u }))] } : null
     if (shotMsg) { shotMsgs.push(shotMsg); trimShots(shotMsgs) }
     convo = [...convo, ...outItems, ...outs.map((x) => ({ type: 'function_call_output', call_id: x.callId, output: x.output })), ...(shotMsg ? [shotMsg] : [])]
+    slimResponsesConvo(convo)
   }
 }
 
@@ -392,6 +427,7 @@ async function runChat(o: RunOpts) {
     const outs = await execTools(o, calls)
     if (o.yieldNow?.()) return
     for (const x of outs) msgs.push({ role: 'tool', tool_call_id: x.callId, content: x.output })
+    slimChatMsgs(msgs)
     const picked = outs.flatMap((x) => x.images ?? [])
     if (picked.length) { const sm = { role: 'user', content: [{ type: 'text', text: imageNote(picked.length) }, ...picked.map((u) => ({ type: 'image_url', image_url: { url: u } }))] }; shotMsgs.push(sm); trimShots(shotMsgs); msgs.push(sm) }
   }
@@ -511,6 +547,7 @@ async function runAnthropic(o: RunOpts) {
       return r
     }) })
     for (const r of keep) { shotMsgs.push(r); trimShots(shotMsgs) }
+    slimAnthropicMsgs(msgs)
   }
 }
 

@@ -40,6 +40,7 @@ function proposedLines(name: string, a: Record<string, any>): DiffLine[] | null 
     String(a.new_string ?? '').split('\n').forEach((s) => out.push({ t: '+', n: 0, s }))
     return out.slice(0, 120).map((l, i) => ({ ...l, n: i + 1 }))
   }
+  if (name === 'append_file' && typeof a.content === 'string') return String(a.content).split('\n').slice(0, 60).map((s, i) => ({ t: '+' as const, n: i + 1, s }))
   if (name === 'write_file' && typeof a.content === 'string') return String(a.content).split('\n').slice(0, 60).map((s, i) => ({ t: '+' as const, n: i + 1, s }))
   return null
 }
