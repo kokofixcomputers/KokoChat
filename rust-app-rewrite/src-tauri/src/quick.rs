@@ -3,7 +3,7 @@
 use crate::commands::{trusted, trusted_quick};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Instant;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -34,6 +34,11 @@ pub struct Quick {
     pub capturing: AtomicBool,
     tray: Mutex<Option<TrayIcon>>,
     last_hide: Mutex<Option<Instant>>,
+    /// changes on every open and close, so a late "now hide the window" cannot close a box that was reopened
+    turn: AtomicU64,
+    closing: AtomicBool,
+    /// the app you were in when the box opened (its process id)
+    came_from: AtomicI32,
 }
 
 fn file(app: &AppHandle) -> Option<std::path::PathBuf> {
@@ -64,7 +69,13 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
 
 /// Open the box near the top of the screen the pointer is on, or under the menu bar icon (`anchor`: its centre and bottom).
 fn show(app: &AppHandle, anchor: Option<(f64, f64)>) {
+    if !visible(app) {
+        app.state::<Quick>().came_from.store(focus::other_app(), Ordering::Relaxed);
+    }
     let Ok(w) = window(app) else { return };
+    let state = app.state::<Quick>();
+    state.turn.fetch_add(1, Ordering::Relaxed);
+    state.closing.store(false, Ordering::Relaxed);
     let point = app.cursor_position().ok();
     let at = anchor.map(|(x, y)| (x, y + 1.0)).or_else(|| point.map(|p| (p.x, p.y)));
     let monitor = at.and_then(|(x, y)| app.monitor_from_point(x, y).ok().flatten()).or_else(|| app.primary_monitor().ok().flatten());
@@ -83,20 +94,41 @@ fn show(app: &AppHandle, anchor: Option<(f64, f64)>) {
     let _ = app.emit_to("quick", "koko:quick:show", ());
 }
 
+/// Play the closing animation, then hide the window.
 pub fn hide(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("quick") {
-        if w.is_visible().unwrap_or(false) {
-            let _ = w.hide();
-            *app.state::<Quick>().last_hide.lock().unwrap() = Some(Instant::now());
+    if !visible(app) {
+        return;
+    }
+    let state = app.state::<Quick>();
+    state.closing.store(true, Ordering::Relaxed);
+    *state.last_hide.lock().unwrap() = Some(Instant::now());
+    let turn = state.turn.fetch_add(1, Ordering::Relaxed) + 1;
+    let _ = app.emit_to("quick", "koko:quick:hiding", ());
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(140));
+        if app.state::<Quick>().turn.load(Ordering::Relaxed) == turn {
+            if let Some(w) = app.get_webview_window("quick") {
+                let _ = w.hide();
+            }
+            app.state::<Quick>().closing.store(false, Ordering::Relaxed);
         }
+    });
+}
+/// Closed on purpose (Esc, the shortcut): go back to the app you came from. Without this, macOS keeps Koko in front and
+/// raises its main window. Not used when the box closes because you clicked somewhere else.
+fn dismiss(app: &AppHandle) {
+    if visible(app) {
+        focus::go_back(app.state::<Quick>().came_from.swap(0, Ordering::Relaxed));
+        hide(app);
     }
 }
 fn visible(app: &AppHandle) -> bool {
-    app.get_webview_window("quick").is_some_and(|w| w.is_visible().unwrap_or(false))
+    !app.state::<Quick>().closing.load(Ordering::Relaxed) && app.get_webview_window("quick").is_some_and(|w| w.is_visible().unwrap_or(false))
 }
 fn toggle(app: &AppHandle) {
     if visible(app) {
-        hide(app)
+        dismiss(app)
     } else {
         show(app, None)
     }
@@ -141,7 +173,7 @@ fn sync_tray(app: &AppHandle, cfg: &Config) -> tauri::Result<()> {
                 // pressing the icon first takes focus from the box (which closes it), so a click right after a close means "close"
                 let just_closed = app.state::<Quick>().last_hide.lock().unwrap().is_some_and(|t| t.elapsed().as_millis() < 300);
                 if visible(app) {
-                    hide(app)
+                    dismiss(app)
                 } else if !just_closed {
                     let k = app.primary_monitor().ok().flatten().map_or(1.0, |m| m.scale_factor());
                     let (p, s) = (rect.position.to_physical::<f64>(k), rect.size.to_physical::<f64>(k));
@@ -254,7 +286,7 @@ pub fn quick_set(app: AppHandle, webview: Webview, patch: Patch) -> Result<Value
 #[tauri::command]
 pub fn quick_hide(app: AppHandle, webview: Webview) -> Result<(), String> {
     trusted_quick(&webview)?;
-    hide(&app);
+    dismiss(&app);
     Ok(())
 }
 #[tauri::command]
@@ -294,6 +326,36 @@ pub fn quick_open_screen_settings(webview: Webview) -> Result<(), String> {
         let _ = std::process::Command::new("open").arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture").spawn();
     }
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+mod focus {
+    use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication, NSWorkspace};
+
+    /// The app in front right now, or 0 when that is Koko itself.
+    pub fn other_app() -> i32 {
+        let pid = NSWorkspace::sharedWorkspace().frontmostApplication().map_or(0, |a| a.processIdentifier());
+        if pid == std::process::id() as i32 {
+            0
+        } else {
+            pid
+        }
+    }
+    pub fn go_back(pid: i32) {
+        if pid > 0 {
+            if let Some(app) = NSRunningApplication::runningApplicationWithProcessIdentifier(pid) {
+                app.activateWithOptions(NSApplicationActivationOptions::empty());
+            }
+        }
+    }
+}
+// Windows hands focus back to the previous window by itself
+#[cfg(not(target_os = "macos"))]
+mod focus {
+    pub fn other_app() -> i32 {
+        0
+    }
+    pub fn go_back(_: i32) {}
 }
 
 #[cfg(target_os = "macos")]

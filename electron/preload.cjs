@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('koko', {
     resize: (h) => ipcRenderer.send('koko:quick:resize', h),
     capture: () => ipcRenderer.invoke('koko:quick:capture'),
     openScreenSettings: () => ipcRenderer.invoke('koko:quick:open-screen-settings'),
+    onHide: (cb) => { const f = () => cb(); ipcRenderer.on('koko:quick:hiding', f); return () => ipcRenderer.removeListener('koko:quick:hiding', f) },
     onShow: (cb) => { const f = () => cb(); ipcRenderer.on('koko:quick:show', f); return () => ipcRenderer.removeListener('koko:quick:show', f) },
     // for the main window
     onSubmit: (cb) => { const f = (_e, p) => cb(p); ipcRenderer.on('koko:quick:submit', f); return () => ipcRenderer.removeListener('koko:quick:submit', f) },

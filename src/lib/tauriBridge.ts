@@ -18,7 +18,7 @@ export async function installTauriBridge() {
     channel<{ id: string; chunk: string }>('koko:shell:data'), channel<{ id: string; data: string }>('koko:pty:data'), channel<{ id: string; code: number }>('koko:pty:exit'),
     channel<number>('koko:close-request'), channel<null>('koko:open-settings'), channel<string>('koko:browser:open'), channel<BrowserEvent>('koko:browser:event'),
   ])
-  const [quickShow, quickSubmit] = await Promise.all([channel<null>('koko:quick:show'), channel<QuickPayload>('koko:quick:submit')])
+  const [quickShow, quickHiding, quickSubmit] = await Promise.all([channel<null>('koko:quick:show'), channel<null>('koko:quick:hiding'), channel<QuickPayload>('koko:quick:submit')])
   const [notifyEvent, focus] = await Promise.all([channel<{ id: string; type: 'click' | 'action'; index?: number }>('koko:notify:event'), channel<boolean>('koko:focus')])
   // notifications only appear when you are not looking: ask the window itself, the web view can miss it
   let focused = true
@@ -60,7 +60,7 @@ export async function installTauriBridge() {
     onOpenSettings: (cb) => openSettings(() => cb()),
     onCloseRequest: closeRequest,
     closeAnswer: (ok) => send('close_answer', { ok }),
-    quick: quickBridge(call, quickShow, quickSubmit),
+    quick: quickBridge(call, quickShow, quickHiding, quickSubmit),
     // not ported yet
     oauth: { popup: async () => ({ error: `Signing in with 1minRelay ${later} Paste an API key instead.` }) },
     notify: {
@@ -79,7 +79,7 @@ export async function installTauriBridge() {
 
 type Subscribe<T> = (cb: (v: T) => void) => () => void
 
-function quickBridge(call: Invoke, show: Subscribe<null>, submitted: Subscribe<QuickPayload>): KokoApi['quick'] {
+function quickBridge(call: Invoke, show: Subscribe<null>, hiding: Subscribe<null>, submitted: Subscribe<QuickPayload>): KokoApi['quick'] {
   const send = (cmd: string, args?: Record<string, unknown>) => { void call(cmd, args).catch((e) => console.error(cmd, e)) }
   return {
     submit: (payload) => send('quick_submit', { payload }),
@@ -88,6 +88,7 @@ function quickBridge(call: Invoke, show: Subscribe<null>, submitted: Subscribe<Q
     capture: () => call<{ dataUrl?: string; cancelled?: boolean; error?: string }>('quick_capture').catch((e) => ({ error: String(e) })),
     openScreenSettings: () => call<void>('quick_open_screen_settings'),
     onShow: (cb) => show(() => cb()),
+    onHide: (cb) => hiding(() => cb()),
     onSubmit: submitted,
     getConfig: () => call('quick_get'),
     setConfig: (patch) => call('quick_set', { patch }),
@@ -99,9 +100,13 @@ function quickBridge(call: Invoke, show: Subscribe<null>, submitted: Subscribe<Q
 /** The floating quick-ask box gets only the quick-ask part of the bridge: it must not touch files, the shell or the saved data. */
 export async function installQuickBridge() {
   const [{ invoke }, { getCurrentWebview }] = await Promise.all([import('@tauri-apps/api/core'), import('@tauri-apps/api/webview')])
-  const shown = new Set<(v: null) => void>()
-  await getCurrentWebview().listen<null>('koko:quick:show', () => shown.forEach((f) => f(null)))
-  const quick = quickBridge(invoke as Invoke, (cb) => { shown.add(cb); return () => { shown.delete(cb) } }, () => () => {})
+  const listen = async (name: string): Promise<Subscribe<null>> => {
+    const subs = new Set<(v: null) => void>()
+    await getCurrentWebview().listen<null>(name, () => subs.forEach((f) => f(null)))
+    return (cb) => { subs.add(cb); return () => { subs.delete(cb) } }
+  }
+  const [shown, hiding] = await Promise.all([listen('koko:quick:show'), listen('koko:quick:hiding')])
+  const quick = quickBridge(invoke as Invoke, shown, hiding, () => () => {})
   window.koko = { isElectron: true, platform: /Mac/.test(navigator.platform) ? 'darwin' : 'win32', quick } as unknown as KokoApi
 }
 

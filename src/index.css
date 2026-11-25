@@ -100,6 +100,12 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 var(--accent-soft); } 100% { box-shadow: 0 0 0 10px transparent; } }
 .anim-fade-up { animation: fade-up 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* the quick-ask box drops in each time it opens, and leaves before its window hides (the shells wait for it) */
+@keyframes quick-in { from { opacity: 0; transform: translateY(-10px) scale(0.95); } to { opacity: 1; transform: none; } }
+@keyframes quick-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-6px) scale(0.97); } }
+.quick-in { animation: quick-in 0.22s cubic-bezier(0.2, 0.9, 0.25, 1.15) both; }
+.quick-out { animation: quick-out 0.13s ease-in both; }
+@media (prefers-reduced-motion: reduce) { .quick-in, .quick-out { animation-duration: 0.01s; } }
 .anim-pop { animation: pop 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .anim-slide-in { animation: slide-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .anim-slide-in-left { animation: slide-in-left 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }

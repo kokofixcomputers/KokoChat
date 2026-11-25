@@ -56,7 +56,16 @@ export function QuickAsk() {
     setPick(ok(last) ? last : ok(s.selected) ? s.selected : s.providers[0] ? { providerId: s.providers[0].id, model: s.providers[0].models[0] } : null)
   }, [])
 
-  useEffect(() => { void refresh(); return k?.quick.onShow(() => { void refresh(); setNote(null); setMenu(false); setTimeout(() => ta.current?.focus(), 30) }) }, [refresh, k])
+  // the window is reused, so the animation has to be started again each time (without remounting: what you typed stays)
+  const animate = useCallback((name: 'quick-in' | 'quick-out') => {
+    const el = card.current
+    if (!el) return
+    el.classList.remove('quick-in', 'quick-out')
+    void el.offsetWidth // makes the browser notice the removal, so the same animation can run again
+    el.classList.add(name)
+  }, [])
+  useEffect(() => { void refresh(); return k?.quick.onShow(() => { animate('quick-in'); void refresh(); setNote(null); setMenu(false); setTimeout(() => ta.current?.focus(), 30) }) }, [refresh, k, animate])
+  useEffect(() => k?.quick.onHide(() => animate('quick-out')), [k, animate])
   useEffect(() => { document.body.style.background = 'transparent'; setTimeout(() => ta.current?.focus(), 60) }, [])
 
   // keep the window as tall as its content
@@ -95,7 +104,7 @@ export function QuickAsk() {
 
   return (
     <div className="p-5" onKeyDown={(e) => { if (e.key === 'Escape') { if (menu) setMenu(false); else k?.quick.hide() } }}>
-      <div ref={card} className="glass-strong anim-pop relative overflow-visible rounded-[26px] p-3 shadow-[0_18px_50px_-12px_rgba(0,0,0,0.45)] ring-1 ring-black/5 dark:ring-white/10">
+      <div ref={card} className="glass-strong quick-in relative overflow-visible rounded-[26px] p-3 shadow-[0_18px_50px_-12px_rgba(0,0,0,0.45)] ring-1 ring-black/5 dark:ring-white/10">
         {image && (
           <div className="mb-2 flex px-1 pt-1">
             <div className="group relative">

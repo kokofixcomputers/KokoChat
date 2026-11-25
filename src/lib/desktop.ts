@@ -36,6 +36,7 @@ export interface KokoApi {
     capture: () => Promise<{ dataUrl?: string; cancelled?: boolean; error?: string }>
     openScreenSettings: () => Promise<void>
     onShow: (cb: () => void) => () => void
+    onHide: (cb: () => void) => () => void
     onSubmit: (cb: (p: QuickPayload) => void) => () => void
     getConfig: () => Promise<{ enabled: boolean; shortcut: string; menuBar: boolean; registered: boolean; defaultShortcut: string }>
     setConfig: (c: { enabled?: boolean; shortcut?: string; menuBar?: boolean }) => Promise<{ enabled: boolean; shortcut: string; menuBar: boolean; registered: boolean; error?: string | null }>

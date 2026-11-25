@@ -14,6 +14,8 @@ let capturing = false
 let registered = ''
 let tray = null
 let lastHide = 0
+let closing = null // the timer that hides the box once its closing animation has played
+const isOpen = () => !!quickWin && quickWin.isVisible() && !closing
 const canFade = process.platform === 'darwin' || process.platform === 'win32'
 
 const file = () => path.join(app.getPath('userData'), 'quick.json')
@@ -26,7 +28,9 @@ function child(opts) {
 }
 
 function createQuickWindow() {
-  quickWin = child({ width: 720, height: 220, show: false, frame: false, transparent: true, resizable: false, movable: false, alwaysOnTop: true, skipTaskbar: true, hasShadow: false, fullscreenable: false, minimizable: false, maximizable: false, backgroundColor: '#00000000', title: 'Koko quick ask' })
+  // On macOS a "panel" takes your typing without bringing Koko to the front, so closing it leaves you where you were
+  // (an ordinary window activates the app, and closing it then raised Koko's main window).
+  quickWin = child({ ...(process.platform === 'darwin' ? { type: 'panel' } : {}), width: 720, height: 220, show: false, frame: false, transparent: true, resizable: false, movable: false, alwaysOnTop: true, skipTaskbar: true, hasShadow: false, fullscreenable: false, minimizable: false, maximizable: false, backgroundColor: '#00000000', title: 'Koko quick ask' })
   quickWin.setAlwaysOnTop(true, 'screen-saver')
   // follow you to whichever desktop you are on. (Not visibleOnFullScreen: on macOS that turns Koko into a background app and removes it from the Dock.)
   if (process.platform === 'darwin') quickWin.setVisibleOnAllWorkspaces(true)
@@ -37,6 +41,7 @@ function createQuickWindow() {
 
 /** Open the box: centred near the top of the screen, or dropped from the menu bar icon when it was opened from there. */
 function showQuick(anchor) {
+  if (closing) { clearTimeout(closing); closing = null }
   if (!quickWin) createQuickWindow()
   const point = screen.getCursorScreenPoint()
   const d = screen.getDisplayNearestPoint(anchor ? { x: anchor.x, y: anchor.y } : point)
@@ -48,8 +53,15 @@ function showQuick(anchor) {
   quickWin.show(); quickWin.focus()
   quickWin.webContents.send('koko:quick:show')
 }
-function hideQuick() { if (quickWin && quickWin.isVisible()) { quickWin.hide(); lastHide = Date.now() } }
-const toggle = () => (quickWin && quickWin.isVisible() ? hideQuick() : showQuick())
+function hideQuick(now) {
+  if (!isOpen()) return
+  lastHide = Date.now()
+  const done = () => { closing = null; if (quickWin) quickWin.hide() }
+  if (now === true) return done()
+  quickWin.webContents.send('koko:quick:hiding')
+  closing = setTimeout(done, 140)
+}
+const toggle = () => (isOpen() ? hideQuick() : showQuick())
 
 /* ------------------------------ menu bar / tray icon ------------------------------ */
 function syncTray() {
@@ -68,7 +80,7 @@ function syncTray() {
     { label: 'Quit Koko', role: 'quit' },
   ])
   // clicking the icon first takes focus from the box (which closes it), so a click right after a close means "close"
-  tray.on('click', () => { if (quickWin && quickWin.isVisible()) hideQuick(); else if (Date.now() - lastHide > 300) showQuick(tray.getBounds()) })
+  tray.on('click', () => { if (isOpen()) hideQuick(); else if (Date.now() - lastHide > 300) showQuick(tray.getBounds()) })
   tray.on('right-click', () => tray.popUpContextMenu(menu()))
 }
 
@@ -99,7 +111,7 @@ async function captureArea() {
   try {
     // Make the quick-ask box invisible instead of hiding it: hiding makes macOS bring Koko's main window to the front,
     // and that window would then be what gets captured. (Linux cannot do opacity, so it hides.)
-    if (canFade) { quickWin.setIgnoreMouseEvents(true); quickWin.setOpacity(0) } else hideQuick()
+    if (canFade) { quickWin.setIgnoreMouseEvents(true); quickWin.setOpacity(0) } else hideQuick(true)
     await sleep(220)
     const scale = display.scaleFactor || 1
     const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: Math.round(display.size.width * scale), height: Math.round(display.size.height * scale) } })
