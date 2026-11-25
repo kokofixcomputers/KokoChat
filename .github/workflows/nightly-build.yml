@@ -78,7 +78,8 @@ jobs:
           tag_name: ${{ steps.tag.outputs.TAG_NAME }}
           name: ${{ steps.tag.outputs.TAG_NAME }}
           files: |
-            artifacts/mac/**
-            artifacts/windows/**
+            artifacts/mac/*Koko-*-mac.zip
+            artifacts/mac/*Koko-*.dmg
+            artifacts/windows/**Koko Setup*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
