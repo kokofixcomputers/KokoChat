@@ -1,22 +1,47 @@
 # Koko Chat
 
-React + TypeScript + Tailwind v4 AI chat. Fully client-side (chats/keys stored in IndexedDB).
+Koko Chat is a fast, extensible AI chat client built with React + TypeScript + Tailwind. It runs fully client-side in the browser (chats and API keys stored in IndexedDB) and also ships as an Electron desktop app with an integrated coding agent.
 
-    npm install && npm run dev
+Why Koko Chat
+- Lightweight, client-first chat UI optimized for productivity and privacy.
+- Use any OpenAI-compatible provider or a number of built-in providers (OpenAI Responses API, OpenRouter, Groq, Together, DeepSeek, Mistral, xAI, Gemini, Ollama, LM Studio, and more).
+- Models are discovered and fetched live from /models so you can plug in custom endpoints or proxies.
 
-- Providers: OpenAI (Responses API), OpenRouter, Groq, Together, DeepSeek, Mistral, xAI, Gemini, Ollama, LM Studio, or any custom OpenAI-compatible URL. Models are fetched live from `/models`.
-- Tools: Tavily web search (add key in Settings → Tools) and `create_artifact` (html, chart, svg, markdown, code).
-- Providers must allow browser (CORS) requests; for others put a proxy in front.
+Key features
+- Multi-provider support: Add multiple providers and switch between them per-chat or per-session.
+- Tooling: Built-in web search (Tavily) and a create_artifact tool that can generate HTML, charts, SVGs, Markdown, and code artifacts.
+- Desktop "Chat | Code" mode: The same app runs in Electron with a Code mode — a coding agent that can read, search, edit and create files in a project, run shell commands (asked for approval), and save generated images straight into the project.
+- Extensible: Add custom OpenAI-compatible provider URLs and custom tools. Providers must permit browser (CORS) requests; use a proxy for others.
+- Local-first: Chat history and keys remain on your device (IndexedDB).
 
-## Desktop app (Chat + Code)
+Security & permissions (desktop)
+- File and shell operations require explicit approval. Safe, read-only commands (ls, git status) run without prompting; potentially destructive operations are flagged.
+- You can enable per-session auto-approve for convenience, but it is not persisted.
+- Code sessions and project edits are local by default; include CLAUDE.md or AGENTS.md in your project to instruct the coding agent.
 
-The same app runs as an Electron desktop app, with a **Chat | Code** switch. Code mode is a coding agent that works inside a project folder on your computer with any model you have added: it reads, searches, edits and creates files, runs shell commands, searches the web and generates images straight into the project (for example a logo saved to `public/logo.png`).
+Quick start
+1. Install dependencies:
+   npm install
+2. Start the dev server:
+   npm run dev
 
-    npm run electron:dev      # Vite dev server + app window
-    npm run electron:start    # build, then open the app
-    npm run electron:pack     # unpacked app in release/
-    npm run electron:dist     # installers (dmg/zip, nsis, AppImage)
+Run the desktop app (Electron)
+- Dev: npm run electron:dev    # Vite dev server + app window
+- Start (build + open): npm run electron:start
+- Package/unpacked: npm run electron:pack
+- Create installers: npm run electron:dist
 
-Permissions: reading and searching inside the project folder is always allowed. Edits and commands ask first ("Allow", "Always allow `npm test`", "Deny"). Per session you can switch to *Auto-approve edits* or *Bypass permissions* (shown with a warning, never remembered after quitting). Obviously read-only commands (`ls`, `git status`, ...) run without asking; anything that looks dangerous (`rm -rf`, `sudo`, `git push`, ...) is flagged and never covered by an "always allow" rule. Paths outside the project folder always need approval.
+Configuration
+- Add provider API keys and tool keys in Settings → Providers / Tools.
+- If a provider does not support CORS from the browser, run a small proxy in front of it or use the desktop app.
 
-Code sessions are stored on this computer only and are not synced. Put project rules in `CLAUDE.md` or `AGENTS.md` in the folder and the agent follows them.
+Notes
+- The app expects providers to expose model metadata at /models (the project fetches model lists live).
+- Sensitive files such as .env or .env.local should be in .gitignore. If secrets were accidentally committed, remove them and consider rewriting history.
+
+Contributing
+- Bug reports, feature requests and PRs are welcome. Run tests and linters where applicable and follow the project coding style.
+
+License
+- (Add your license here)
+
