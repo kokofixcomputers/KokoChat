@@ -65,7 +65,7 @@ const MODES: { v: PermissionMode; label: string; d: string; icon: React.ReactNod
 
 /** Permission mode of the current Code session. */
 export function PermissionPill({ chatId }: { chatId: string }) {
-  const perm = useStore((s) => s.codePerm[chatId] ?? s.settings.codeDefaultPermission ?? 'ask')
+  const perm = useStore((s) => s.codePerm[chatId] ?? s.settings.codeDefaultPermission ?? 'auto')
   const { setCodePerm, setBypassPrompt } = useStore()
   const cur = MODES.find((m) => m.v === perm)!
   return (

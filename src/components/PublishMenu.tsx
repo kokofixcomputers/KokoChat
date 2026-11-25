@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { askConfirm } from '../lib/confirm'
 import { Globe, Check, Copy, ExternalLink, Loader2, Trash2, RefreshCw } from 'lucide-react'
 import { useStore } from '../store'
 import type { Artifact } from '../types'
@@ -75,7 +76,7 @@ export function PublishedSettings() {
           </div>
           <IconButton title="Copy link" className="h-8 w-8" onClick={() => copy(publishedUrl(p.id))}><Copy size={15} /></IconButton>
           <IconButton title="Open" className="h-8 w-8" onClick={() => window.open(publishedUrl(p.id), '_blank')}><ExternalLink size={15} /></IconButton>
-          <IconButton title="Unpublish" className="h-8 w-8 text-red-500" onClick={() => { if (confirm(`Unpublish "${p.title}"? Its link will stop working.`)) unpublish(p.id).then(() => toast.success('Unpublished')).catch((e) => toast.error(e.message)) }}><Trash2 size={15} /></IconButton>
+          <IconButton title="Unpublish" className="h-8 w-8 text-red-500" onClick={async () => { if (await askConfirm(`Unpublish "${p.title}"? Its link will stop working.`)) unpublish(p.id).then(() => toast.success('Unpublished')).catch((e) => toast.error(e.message)) }}><Trash2 size={15} /></IconButton>
         </div>
       ))}
     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { askConfirm } from '../lib/confirm'
 import { AlertCircle, Bell, BellOff, CalendarClock, ChevronDown, Clock, Loader2, PanelLeft, Pause, Pencil, Play, Plus, Sparkles, Square, Trash2, X } from 'lucide-react'
 import { useStore } from '../store'
 import { Markdown } from './Markdown'
@@ -98,7 +99,7 @@ function Card({ job, onEdit }: { job: CoJob; onEdit: () => void }) {
       <div className="mt-2 flex items-center gap-2 text-xs text-faint">
         {shown?.model && <span className="truncate">{shown.model}</span>}
         {shown?.sources.length ? <span>· {shown.sources.length} sources</span> : null}
-        <button onClick={() => { if (confirm(`Delete “${job.name}” and its reports?`)) del(job.id) }} className="ml-auto grid h-6 w-6 place-items-center rounded-full hover:text-danger" title="Delete"><Trash2 size={13} /></button>
+        <button onClick={async () => { if (await askConfirm(`Delete “${job.name}” and its reports?`)) del(job.id) }} className="ml-auto grid h-6 w-6 place-items-center rounded-full hover:text-danger" title="Delete"><Trash2 size={13} /></button>
       </div>
     </section>
   )

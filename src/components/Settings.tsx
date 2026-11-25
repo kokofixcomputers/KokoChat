@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { askConfirm } from '../lib/confirm'
 import { del as idbDel } from 'idb-keyval'
 import { Check, ChevronDown, Eye, EyeOff, KeyRound, Loader2, Monitor, Moon, Plug, Plus, RefreshCw, Sun, Trash2, X, Wrench, SlidersHorizontal, CircleAlert, Globe, Server, ShieldCheck, Mic, Volume2, Square, ImageIcon, Cloud, Terminal, Puzzle, BarChart3, BookText, Video, Code2 } from 'lucide-react'
 import { useStore } from '../store'
@@ -671,7 +672,7 @@ function Sync() {
 
       <div className="flex flex-wrap gap-2">
         <button onClick={() => run(signOut)} className="h-9 rounded-full bg-fg/8 px-4 text-sm font-medium hover:bg-fg/12">Sign out</button>
-        <button onClick={() => run(async () => { if (confirm('Delete ALL data stored in the cloud for this account? Local data on your devices is kept.')) { await deleteCloudData(); toast.success('Cloud data deleted') } })} className="h-9 rounded-full bg-danger/10 px-4 text-sm font-medium text-danger hover:bg-danger/20">Delete cloud data</button>
+        <button onClick={() => run(async () => { if (await askConfirm('Delete ALL data stored in the cloud for this account? Local data on your devices is kept.')) { await deleteCloudData(); toast.success('Cloud data deleted') } })} className="h-9 rounded-full bg-danger/10 px-4 text-sm font-medium text-danger hover:bg-danger/20">Delete cloud data</button>
       </div>
       {err && <div className="text-xs text-danger">{err}</div>}
     </div>
@@ -782,7 +783,7 @@ function CodeSettings() {
       <p className="text-sm text-muted">Code mode lets the AI work inside a project folder on this computer: read and edit files, run commands, search the web and generate images into the project. It always asks before changing anything unless you turn that off for a session.</p>
       <section className="flex flex-col gap-4 rounded-2xl border border-line bg-surface/50 p-4">
         <Row label="New sessions start with" hint="Reading and searching files inside the project folder never needs approval. Bypassing all permissions can only be turned on inside a session, after a warning.">
-          <Segmented value={settings.codeDefaultPermission ?? 'ask'} onChange={(v) => setSettings({ codeDefaultPermission: v })} options={[{ value: 'ask', label: 'Ask first' }, { value: 'acceptEdits', label: 'Auto-approve edits' }, { value: 'auto', label: 'Auto' }]} />
+          <Segmented value={settings.codeDefaultPermission ?? 'auto'} onChange={(v) => setSettings({ codeDefaultPermission: v })} options={[{ value: 'ask', label: 'Ask first' }, { value: 'acceptEdits', label: 'Auto-approve edits' }, { value: 'auto', label: 'Auto' }]} />
         </Row>
         <div className="rounded-xl bg-fg/4 px-3.5 py-3 text-xs leading-relaxed text-muted">
           <span className="font-medium text-fg/80">Auto mode.</span> A small, fast model reads each command together with what you asked for and lets safe ones run. Things that cannot be undone, such as deploying, publishing, pushing to a remote or deleting data, are blocked unless you explicitly asked for them in your message (for example “deploy after you are done”). The AI is told why, so it can explain and move on. If the reviewer is unsure, it asks you.
@@ -833,7 +834,7 @@ function General() {
       <div className="rounded-2xl border border-danger/30 p-4">
         <div className="text-sm font-medium">Danger zone</div>
         <p className="mb-3 text-xs text-muted">Chats, providers and keys live only in this browser. Clearing wipes all of it.</p>
-        <button onClick={async () => { if (confirm('Delete all chats, providers and keys from this browser?')) { await idbDel('kokochat-v1'); location.reload() } }} className="h-9 rounded-full bg-danger/10 px-4 text-sm font-medium text-danger transition hover:bg-danger/20">Erase all data</button>
+        <button onClick={async () => { if (await askConfirm('Delete all chats, providers and keys from this browser?')) { await idbDel('kokochat-v1'); location.reload() } }} className="h-9 rounded-full bg-danger/10 px-4 text-sm font-medium text-danger transition hover:bg-danger/20">Erase all data</button>
       </div>
     </div>
   )

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { askConfirm } from '../lib/confirm'
 import { Brain, Plus, Search, Trash2, Undo2 } from 'lucide-react'
 import type { Block, Memory } from '../types'
 import { useStore } from '../store'
@@ -84,7 +85,7 @@ export function MemorySettings() {
       <div className="flex flex-col rounded-2xl border border-line bg-surface/50 p-1.5">
         {list.length ? list.map((x) => <Row key={x.id} m={x} />) : <p className="px-3 py-8 text-center text-sm text-faint">{memories.length ? 'No memories match.' : 'Nothing remembered yet. Tell the AI about yourself, or add something above.'}</p>}
       </div>
-      {memories.length > 0 && <div className="flex items-center justify-between text-xs text-faint"><span>{memories.length} {memories.length === 1 ? 'memory' : 'memories'}</span><button onClick={() => { if (confirm(`Delete all ${memories.length} memories? This also removes them from your synced devices.`)) clearMemories() }} className="font-medium text-danger/80 hover:text-danger">Clear all</button></div>}
+      {memories.length > 0 && <div className="flex items-center justify-between text-xs text-faint"><span>{memories.length} {memories.length === 1 ? 'memory' : 'memories'}</span><button onClick={async () => { if (await askConfirm(`Delete all ${memories.length} memories? This also removes them from your synced devices.`)) clearMemories() }} className="font-medium text-danger/80 hover:text-danger">Clear all</button></div>}
     </div>
   )
 }

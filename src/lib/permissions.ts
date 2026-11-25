@@ -35,7 +35,7 @@ const resolvers = new Map<string, (d: Decision) => void>()
 
 /** a sub-agent follows the permission mode of the session that started it */
 export const rootOf = (chatId: string) => useStore.getState().chats.find((c) => c.id === chatId)?.sub?.parentId ?? chatId
-export const permissionOf = (chatId: string): PermissionMode => useStore.getState().codePerm[rootOf(chatId)] ?? useStore.getState().settings.codeDefaultPermission ?? 'ask'
+export const permissionOf = (chatId: string): PermissionMode => useStore.getState().codePerm[rootOf(chatId)] ?? useStore.getState().settings.codeDefaultPermission ?? 'auto'
 
 /* ------------------------------ shell command rules ------------------------------ */
 // Commands that only look at things. Only auto-approved without chaining, redirects or substitution.

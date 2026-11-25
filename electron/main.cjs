@@ -22,15 +22,19 @@ if (!app.requestSingleInstanceLock()) app.quit()
 let win = null
 let quitting = false
 let busy = 0 // agents currently running, reported by the renderer
-// Ask before closing while agents are still working. Returns true when the user chooses to close anyway.
+// Ask before closing while agents are still working. The question is shown by the app window itself (a modal);
+// the window answers through 'koko:close-answer'. Returns true only when nothing is running.
+let asking = false
 function confirmClose() {
   if (!busy || process.env.KOKO_SMOKE) return true
-  const r = dialog.showMessageBoxSync(win && !win.isDestroyed() ? win : undefined, {
-    type: 'warning', buttons: ['Keep working', 'Close anyway'], defaultId: 0, cancelId: 0,
-    message: 'Are you sure you want to close?',
-    detail: `You have ${busy} agent${busy === 1 ? '' : 's'} still running. Closing will interrupt ${busy === 1 ? 'it' : 'them'}.`,
-  })
-  return r === 1
+  if (!win || win.isDestroyed()) return true
+  if (!asking) {
+    asking = true
+    if (!win.isVisible()) win.show()
+    win.focus()
+    win.webContents.send('koko:close-request', busy)
+  }
+  return false
 }
 
 function createWindow() {
@@ -61,7 +65,6 @@ function createWindow() {
   // on macOS closing the window only hides it, so scheduled co-worker jobs keep running; quitting really quits
   win.on('close', (e) => {
     if (!quitting && busy && !confirmClose()) return e.preventDefault()
-    if (!quitting && busy) { quitting = true; app.quit(); return }
     if (process.platform === 'darwin' && !quitting && !process.env.KOKO_SMOKE) { e.preventDefault(); win.hide() }
   })
   win.on('closed', () => { win = null; if (process.platform !== 'darwin') app.quit() })
@@ -102,6 +105,7 @@ function registerIpc() {
     const r = await dialog.showOpenDialog(win, { title: 'Choose a project folder', properties: ['openDirectory', 'createDirectory'] })
     return r.canceled ? null : r.filePaths[0]
   })
+  ipcMain.on('koko:close-answer', (_e, ok) => { asking = false; if (ok) { busy = 0; quitting = true; app.quit() } })
   ipcMain.on('koko:busy', (_e, n) => { busy = Math.max(0, Number(n) || 0) })
   ipcMain.handle('koko:reveal', (_e, p) => { if (typeof p === 'string') shell.showItemInFolder(p) })
   ipcMain.handle('koko:open-folder', (_e, p) => { if (typeof p === 'string') return shell.openPath(p) })

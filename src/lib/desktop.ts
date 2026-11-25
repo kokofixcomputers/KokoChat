@@ -77,6 +77,8 @@ export interface KokoApi {
     close: (id: string) => void
     onEvent: (cb: (e: { id: string; type: 'click' | 'action'; index?: number }) => void) => () => void
   }
+  onCloseRequest: (cb: (running: number) => void) => () => void
+  closeAnswer: (ok: boolean) => void
   onOpenSettings: (cb: () => void) => () => void
   onBrowserOpen: (cb: (url: string) => void) => () => void
   shell: {

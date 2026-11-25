@@ -77,6 +77,7 @@ export const DEFAULT_SETTINGS: Settings = {
   video: { enabled: false, providerId: '', model: 'gemini-omni-1.2-flash', aspect: 'auto', seconds: 8, resolution: '720p' },
   stt: { engine: 'api', providerId: '', model: 'gpt-4o-mini-transcribe', language: '' },
   tts: { engine: 'browser', providerId: '', model: 'gpt-4o-mini-tts', voice: 'alloy', voiceURI: '', rate: 1 },
+  codeDefaultPermission: 'auto',
   tavilyKey: '',
   systemPrompt: 'You are a helpful, thoughtful AI assistant.',
   theme: 'system',
@@ -238,7 +239,7 @@ function chatContext(chat: Chat | undefined, code?: Awaited<ReturnType<typeof co
   return [
     chat.mode === 'code' ? codeSystemPrompt(chat.cwd ?? '', code) : '',
     chat.mode === 'code' ? (chat.sub ? SUB_AGENT_PROMPT(chat.sub.name) : MAIN_AGENT_PROMPT) : '',
-    chat.mode === 'code' && (st.codePerm[chat.sub?.parentId ?? chat.id] ?? st.settings.codeDefaultPermission) === 'auto' ? AUTO_MODE_PROMPT : '',
+    chat.mode === 'code' && (st.codePerm[chat.sub?.parentId ?? chat.id] ?? st.settings.codeDefaultPermission ?? 'auto') === 'auto' ? AUTO_MODE_PROMPT : '',
     memoryBlock(chat),
     project?.instructions.trim() ? `Project "${project.name}" instructions:\n${project.instructions.trim()}` : '',
     chat.system?.trim() ?? '',

@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld('koko', {
     close: (id) => ipcRenderer.send('koko:notify:close', id),
     onEvent: (cb) => { const f = (_e, d) => cb(d); ipcRenderer.on('koko:notify:event', f); return () => ipcRenderer.removeListener('koko:notify:event', f) },
   },
+  onCloseRequest: (cb) => { const f = (_e, n) => cb(n); ipcRenderer.on('koko:close-request', f); return () => ipcRenderer.removeListener('koko:close-request', f) },
+  closeAnswer: (ok) => ipcRenderer.send('koko:close-answer', !!ok),
   onOpenSettings: (cb) => { const f = () => cb(); ipcRenderer.on('koko:open-settings', f); return () => ipcRenderer.removeListener('koko:open-settings', f) },
   onBrowserOpen: (cb) => { const f = (_e, u) => cb(u); ipcRenderer.on('koko:browser:open', f); return () => ipcRenderer.removeListener('koko:browser:open', f) },
   shell: {

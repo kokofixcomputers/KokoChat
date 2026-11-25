@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { askConfirm } from '../lib/confirm'
 import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, Copy, GitBranch, GitCommitHorizontal, Loader2, Minus, Plus, Sparkles, Undo2, X } from 'lucide-react'
 import { koko, type GitStatus, type GitFile } from '../lib/desktop'
 import { aiCommitMessage, aiPrText } from '../lib/gitAi'
@@ -107,7 +108,7 @@ export function ChangesPanel({ cwd, status, reload, openDiff }: { cwd: string; s
             <div className="flex items-center px-2.5 pb-0.5 pt-1 text-xs font-medium text-muted"><span className="flex-1">Changes ({unstaged.length})</span><button title="Stage all" onClick={() => run('stage', () => k.git.stage({ cwd, all: true }))} className="text-faint hover:text-fg"><Plus size={14} /></button></div>
             {unstaged.map((f) => (
               <FileRow key={'u' + f.path} f={f} onOpen={() => openDiff(f)} action={<>
-                <button title={f.status === 'U' ? 'Delete this new file' : 'Discard changes'} onClick={() => { if (confirm(f.status === 'U' ? `Delete ${f.path}? It is not in git, so this cannot be undone.` : `Discard your changes to ${f.path}? This cannot be undone.`)) void run('discard', () => k.git.discard({ cwd, paths: [f.path] })) }} className={cn(iconBtn, 'hover:text-danger')}><Undo2 size={13} /></button>
+                <button title={f.status === 'U' ? 'Delete this new file' : 'Discard changes'} onClick={async () => { if (await askConfirm(f.status === 'U' ? `Delete ${f.path}? It is not in git, so this cannot be undone.` : `Discard your changes to ${f.path}? This cannot be undone.`)) void run('discard', () => k.git.discard({ cwd, paths: [f.path] })) }} className={cn(iconBtn, 'hover:text-danger')}><Undo2 size={13} /></button>
                 <button title="Stage" onClick={() => run('stage', () => k.git.stage({ cwd, paths: [f.path] }))} className={iconBtn}><Plus size={14} /></button>
               </>} />
             ))}

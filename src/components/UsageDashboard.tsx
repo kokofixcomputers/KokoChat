@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { askConfirm } from '../lib/confirm'
 import { Download, Trash2 } from 'lucide-react'
 import { useStore } from '../store'
 import { Segmented } from './ui'
@@ -154,7 +155,7 @@ export function UsageDashboard() {
         <p className="max-w-xl text-xs leading-relaxed text-faint">List prices from the OpenAI and Anthropic docs ({PRICES_AS_OF}). Providers that resell models (OpenRouter, relays) may charge differently. Video generation, web search and sandbox time are not included. Kept on this device only.</p>
         <div className="flex gap-2">
           <button onClick={csv} className="flex h-9 items-center gap-2 rounded-full bg-fg/8 px-4 text-sm font-medium transition hover:bg-fg/12 active:scale-95"><Download size={14} />Export CSV</button>
-          <button onClick={() => { if (confirm('Erase the usage history on this device?')) useStore.setState({ usage: {} }) }} className="flex h-9 items-center gap-2 rounded-full px-3 text-sm text-muted transition hover:bg-danger/10 hover:text-danger"><Trash2 size={14} />Reset</button>
+          <button onClick={async () => { if (await askConfirm('Erase the usage history on this device?')) useStore.setState({ usage: {} }) }} className="flex h-9 items-center gap-2 rounded-full px-3 text-sm text-muted transition hover:bg-danger/10 hover:text-danger"><Trash2 size={14} />Reset</button>
         </div>
       </div>
     </div>

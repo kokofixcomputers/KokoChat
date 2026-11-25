@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { askConfirm } from '../lib/confirm'
 import { Blocks, Check, ChevronRight, CircleAlert, Code2, Download, Loader2, Plus, RefreshCw, ShieldAlert, Sparkles, Trash2, Upload } from 'lucide-react'
 import { useStore } from '../store'
 import { usePluginUI } from '../lib/pluginHost'
@@ -89,7 +90,7 @@ function PluginCard({ rec, onCheckUpdate }: { rec: PluginRecord; onCheckUpdate: 
           <div className="flex flex-wrap gap-2">
             {rec.sourceUrl && <button onClick={onCheckUpdate} className="flex h-9 items-center gap-2 rounded-full bg-fg/8 px-4 text-sm font-medium transition hover:bg-fg/12 active:scale-95"><RefreshCw size={14} />Check for update</button>}
             {!editing && <button onClick={() => { setCode(rec.source); setEditing(true) }} className="flex h-9 items-center gap-2 rounded-full bg-fg/8 px-4 text-sm font-medium transition hover:bg-fg/12 active:scale-95"><Code2 size={14} />Edit code</button>}
-            <button onClick={() => { if (confirm(`Remove the plugin “${rec.name}” and its settings?`)) removePlugin(rec.id) }} className="flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium text-danger transition hover:bg-danger/10 active:scale-95"><Trash2 size={14} />Remove</button>
+            <button onClick={async () => { if (await askConfirm(`Remove the plugin “${rec.name}” and its settings?`)) removePlugin(rec.id) }} className="flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium text-danger transition hover:bg-danger/10 active:scale-95"><Trash2 size={14} />Remove</button>
           </div>
         </div>
       )}

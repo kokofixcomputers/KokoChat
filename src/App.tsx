@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ConfirmHost } from './components/ConfirmHost'
 import { useHydrated, useStore } from './store'
 import { Sidebar } from './components/Sidebar'
 import { TopBar } from './components/TopBar'
@@ -170,6 +171,7 @@ export default function App() {
       <SettingsModal />
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
       <Toasts />
+      <ConfirmHost />
       <Onboarding />
       <SelectionQuote />
       <ShareDialog />

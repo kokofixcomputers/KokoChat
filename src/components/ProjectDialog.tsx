@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
+import { askConfirm } from '../lib/confirm'
 import { FileText, FolderOpen, Loader2, Plus, Trash2, Upload, X } from 'lucide-react'
 import { useStore } from '../store'
 import { dropKb, indexFile } from '../lib/kb'
@@ -74,7 +75,7 @@ export function ProjectDialog() {
           </section>
         </div>
         <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3.5">
-          <button onClick={() => { if (confirm(`Delete the project "${project.name}" and its files? Its chats are kept.`)) deleteProject(id) }} className="flex h-9 items-center gap-2 rounded-full px-3 text-sm text-muted transition hover:bg-danger/10 hover:text-danger"><Trash2 size={14} />Delete project</button>
+          <button onClick={async () => { if (await askConfirm(`Delete the project "${project.name}" and its files? Its chats are kept.`)) deleteProject(id) }} className="flex h-9 items-center gap-2 rounded-full px-3 text-sm text-muted transition hover:bg-danger/10 hover:text-danger"><Trash2 size={14} />Delete project</button>
           <button onClick={() => { close(); newChat(id); if (innerWidth < 900) setSidebar(false); window.dispatchEvent(new Event('koko:focus-composer')) }} className="flex h-10 items-center gap-2 rounded-full bg-fg px-5 text-sm font-medium text-bg active:scale-95"><Plus size={15} />New chat in project</button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { askConfirm } from '../lib/confirm'
 import { Ban, CircleAlert, Loader2, LogOut, RefreshCw, Search, ShieldCheck, Trash2, UserCheck, Users } from 'lucide-react'
 import { useStore } from '../store'
 import { cn, fmtBytes } from '../lib/utils'
@@ -79,7 +80,7 @@ function UserRow({ u, me, onChange }: { u: AdminUser; me: boolean; onChange: () 
             </button>
           )}
           <button disabled={busy || !u.sessions} onClick={() => run(() => call(`/users/${u.userId}/sessions`, 'DELETE'), 'Signed out everywhere')} className={cn(btn, 'bg-fg/8 hover:bg-fg/12')}><LogOut size={14} />Sign out everywhere</button>
-          {!me && <button disabled={busy} onClick={() => { if (confirm(`Permanently delete ${u.email} and all of their synced data? This cannot be undone.`)) void run(() => call(`/users/${u.userId}`, 'DELETE'), 'User deleted') }} className={cn(btn, 'ml-auto bg-danger/10 text-danger hover:bg-danger/20')}><Trash2 size={14} />Delete</button>}
+          {!me && <button disabled={busy} onClick={async () => { if (await askConfirm(`Permanently delete ${u.email} and all of their synced data? This cannot be undone.`)) void run(() => call(`/users/${u.userId}`, 'DELETE'), 'User deleted') }} className={cn(btn, 'ml-auto bg-danger/10 text-danger hover:bg-danger/20')}><Trash2 size={14} />Delete</button>}
           {busy && <Loader2 size={15} className="spin self-center text-muted" />}
         </div>
       )}

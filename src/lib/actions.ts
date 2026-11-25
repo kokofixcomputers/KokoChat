@@ -1,4 +1,5 @@
 import { useStore } from '../store'
+import { askConfirm } from './confirm'
 import { useDock } from './dock'
 import type { ProjectAction } from '../types'
 import type { ToolDef } from './tools'
@@ -38,8 +39,8 @@ export async function runActionTool(name: string, a: Record<string, any>, ctx: {
 }
 
 /** Run an action in a new terminal tab. Commands the AI wrote must be looked at and allowed first. */
-export function runAction(act: ProjectAction): boolean {
-  if (act.approved !== act.command && !confirm(`Run this command in ${baseName(act.cwd)}?\n\n${act.command}\n\n${act.source === 'ai' ? 'The AI wrote this command. ' : ''}It runs in a terminal tab where you can see everything it does.`)) return false
+export async function runAction(act: ProjectAction): Promise<boolean> {
+  if (act.approved !== act.command && !(await askConfirm(`Run this command in ${baseName(act.cwd)}?\n\n${act.command}\n\n${act.source === 'ai' ? 'The AI wrote this command. ' : ''}It runs in a terminal tab where you can see everything it does.`))) return false
   const st = useStore.getState()
   st.patchAction(act.id, { approved: act.command, lastRunAt: Date.now() })
   useDock.getState().add('terminal', { cwd: act.cwd, title: act.name, input: act.command })

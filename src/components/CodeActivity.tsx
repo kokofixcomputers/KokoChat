@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { askConfirm } from '../lib/confirm'
 import { ListChecks, ShieldCheck, ShieldAlert, Play, Undo2, Camera, Globe, Ban, Check, ChevronRight, CircleAlert, FilePen, FilePlus2, FileSearch, FileText, FolderTree, Loader2, Search, ShieldQuestion, Terminal } from 'lucide-react'
 import type { Block } from '../types'
 import { useStore } from '../store'
@@ -170,7 +171,7 @@ export function CodeActivity({ blocks, live, turn }: { blocks: Block[]; live: bo
       let r = await k.checkpoint.revert({ key: turn })
       if (r.ok && r.data.conflicts.length) {
         const names = r.data.conflicts.map((p) => p.split(/[\\/]/).pop()).join(', ')
-        if (!confirm(`You changed ${names} after the AI did. Undo anyway? Your newer changes in ${r.data.conflicts.length === 1 ? 'that file' : 'those files'} will be lost.`)) { setBusy(false); return }
+        if (!(await askConfirm(`You changed ${names} after the AI did. Undo anyway? Your newer changes in ${r.data.conflicts.length === 1 ? 'that file' : 'those files'} will be lost.`))) { setBusy(false); return }
         r = await k.checkpoint.revert({ key: turn, force: true })
       }
       if (!r.ok) throw new Error(r.error.message)
