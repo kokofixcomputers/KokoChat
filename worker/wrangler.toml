@@ -9,6 +9,10 @@ binding = "DB"
 database_name = "kokochat"
 database_id = "cce92353-f421-454a-a3cb-987068e6d731"
 
+# Workers AI (Whisper speech-to-text for KokoChat dictation)
+[ai]
+binding = "AI"
+
 # Per-account storage cap in bytes (3 MB).
 # --- Non-secret config. Secrets (SMTP_PASS) go in `wrangler secret put` ----
 [vars]

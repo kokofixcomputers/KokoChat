@@ -5,6 +5,7 @@ const call = (channel) => (args) => ipcRenderer.invoke(channel, args)
 
 contextBridge.exposeInMainWorld('koko', {
   isElectron: true,
+  setBusy: (n) => ipcRenderer.send('koko:busy', n),
   platform: process.platform,
   pickFolder: () => ipcRenderer.invoke('koko:pick-folder'),
   reveal: (p) => ipcRenderer.invoke('koko:reveal', p),

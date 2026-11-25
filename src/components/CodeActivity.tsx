@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { ShieldCheck, ShieldAlert, Play, Undo2, Camera, Globe, Ban, Check, ChevronRight, CircleAlert, FilePen, FilePlus2, FileSearch, FileText, FolderTree, Loader2, Search, ShieldQuestion, Terminal } from 'lucide-react'
+import { ListChecks, ShieldCheck, ShieldAlert, Play, Undo2, Camera, Globe, Ban, Check, ChevronRight, CircleAlert, FilePen, FilePlus2, FileSearch, FileText, FolderTree, Loader2, Search, ShieldQuestion, Terminal } from 'lucide-react'
 import type { Block } from '../types'
 import { useStore } from '../store'
 import { cn } from '../lib/utils'
@@ -13,7 +13,7 @@ import type { DiffLine } from '../lib/desktop'
 type Tool = Extract<Block, { type: 'tool' }>
 interface Meta { auto?: { decision: 'allow' | 'ask' | 'deny'; risk: string; reason: string; by: string }; thumb?: string; url?: string; title?: string; label?: string; path?: string; command?: string; description?: string; output?: string; exit?: number | string | null; summary?: string; created?: boolean; diff?: { added: number; removed: number; lines: DiffLine[]; truncated: boolean }; approval?: { id: string; kind: 'edit' | 'command' | 'outside' | 'tool'; title: string; detail?: string; risky?: string; rule?: string; state: 'pending' | 'allowed' | 'denied' } }
 
-const ICON: Record<CodeDescribe['icon'], typeof FileText> = { read: FileText, edit: FilePen, create: FilePlus2, list: FolderTree, find: FileSearch, search: Search, run: Terminal, web: Globe, shot: Camera, action: Play }
+const ICON: Record<CodeDescribe['icon'], typeof FileText> = { read: FileText, edit: FilePen, create: FilePlus2, list: FolderTree, find: FileSearch, search: Search, run: Terminal, web: Globe, shot: Camera, action: Play, todo: ListChecks }
 
 /* ------------------------------------ diff ------------------------------------ */
 export function DiffView({ lines, truncated, className }: { lines: DiffLine[]; truncated?: boolean; className?: string }) {

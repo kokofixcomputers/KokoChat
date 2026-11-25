@@ -148,6 +148,8 @@ export interface Chat {
   /** Code mode session: an agent working inside the folder `cwd` (desktop app only, never synced) */
   mode?: 'code'
   cwd?: string
+  /** the agent's task list (Code mode) */
+  todos?: Todo[]
   /** a sub-agent: a hidden Code chat started by another session, running in the background */
   sub?: { parentId: string; name: string; task: string; delivered: boolean }
 }
@@ -170,6 +172,9 @@ export interface KbFile {
   addedAt: number
   scope: { project?: string; chat?: string }
 }
+
+/** One step of the plan the Code agent keeps for the current task. */
+export interface Todo { id: string; content: string; status: 'pending' | 'in_progress' | 'completed' }
 
 /** A one-click command for a project (deploy, build, test…). The AI can create them; the user runs them. */
 export interface ProjectAction { id: string; cwd: string; name: string; command: string; description?: string; source: 'ai' | 'user'; createdAt: number; /** the command the user has seen and allowed to run */ approved?: string; lastRunAt?: number }
@@ -242,7 +247,7 @@ export interface McpServer {
   disabledTools?: string[]
 }
 
-export interface SttSettings { engine: 'api' | 'browser'; providerId: string; model: string; language: string }
+export interface SttSettings { engine: 'koko' | 'api' | 'browser'; providerId: string; model: string; language: string }
 export interface TtsSettings { engine: 'api' | 'browser'; providerId: string; model: string; voice: string; voiceURI: string; rate: number }
 
 export interface ImageSettings { enabled: boolean; providerId: string; model: string; quality: string; aspect: 'auto' | 'square' | 'landscape' | 'portrait' }

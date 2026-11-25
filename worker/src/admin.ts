@@ -11,7 +11,7 @@ const ID_RE = /^[0-9a-f]{32}$/
 export async function listUsers(env: Env) {
   const { results } = await env.DB.prepare(
     `SELECT u.user_id, u.email, u.created, u.quota_bytes, u.disabled, u.last_login, u.last_sync,
-            COALESCE(SUM(CASE WHEN i.deleted = 0 THEN i.size END), 0) + (SELECT COALESCE(SUM(size), 0) FROM shares sh WHERE sh.user_id = u.user_id) AS used,
+            COALESCE(SUM(CASE WHEN i.deleted = 0 THEN i.size END), 0) + (SELECT COALESCE(SUM(size), 0) FROM shares sh WHERE sh.user_id = u.user_id) + (SELECT COALESCE(SUM(size), 0) FROM artifacts ar WHERE ar.user_id = u.user_id) AS used,
             COALESCE(SUM(CASE WHEN i.deleted = 0 THEN 1 END), 0) AS items,
             (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.user_id AND s.expires > ?) AS sessions
        FROM users u LEFT JOIN items i ON i.user_id = u.user_id

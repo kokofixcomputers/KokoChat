@@ -10,6 +10,7 @@ import { OPENAI_VOICES, STT_SUGGESTIONS, TTS_SUGGESTIONS, pickProvider, speak, s
 import { uid } from '../lib/utils'
 import { toast } from '../lib/toast'
 import { fmtBytes } from '../lib/utils'
+import { PublishedSettings } from './PublishMenu'
 import { AdminPanel } from './AdminPanel'
 import { exportChatsJson } from '../lib/exporter'
 import { IMAGE_MODEL_SUGGESTIONS, imageProviderPref } from '../lib/imagegen'
@@ -496,13 +497,15 @@ function Voice() {
   const sttP = pickProvider(providers, stt.providerId, ['openai', 'groq'])
   const ttsP = pickProvider(providers, tts.providerId, ['openai'])
   const eng = [{ value: 'api', label: 'Provider model' }, { value: 'browser', label: 'Browser' }] as const
+  const sttEng = [{ value: 'koko', label: 'KokoChat' }, { value: 'api', label: 'Your provider' }, { value: 'browser', label: 'Browser' }] as const
+  const signedIn = !!useStore((s) => s.sync.token)
   return (
     <div className="flex flex-col gap-5">
       <section className="flex flex-col gap-4 rounded-2xl border border-line bg-surface/50 p-4">
         <div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-soft text-accent"><Mic size={18} /></span>
           <div><div className="text-sm font-medium">Speech to text</div><div className="text-xs text-muted">Dictate with the mic button. Text appears in the box so you can edit before sending.</div></div></div>
-        <Row label="Engine" hint={stt.engine === 'browser' ? 'Uses your browser\'s built-in recognition' : 'Sends audio to your provider'}>
-          <Segmented value={stt.engine} onChange={(v) => setSettings({ stt: { ...stt, engine: v } })} options={[...eng]} />
+        <Row label="Hosted by" hint={stt.engine === 'browser' ? 'Uses your browser\'s built-in recognition' : stt.engine === 'koko' ? (signedIn ? 'Audio goes to the KokoChat server, which transcribes it with Whisper. No key needed.' : 'Needs a Sync sign-in (Settings → Sync).') : 'Sends audio to your own provider'}>
+          <Segmented value={stt.engine} onChange={(v) => setSettings({ stt: { ...stt, engine: v } })} options={[...sttEng]} />
         </Row>
         {stt.engine === 'api' && (<>
           <Row label="Provider"><ProviderSelect value={stt.providerId} prefer={['openai', 'groq']} onChange={(v) => setSettings({ stt: { ...stt, providerId: v } })} /></Row>
@@ -841,7 +844,7 @@ export function SettingsModal() {
   const admin = useStore((s) => !!s.sync.token && !!s.sync.admin)
   if (!settingsOpen) return null
   const desktop = isDesktop()
-  const tabs = [{ id: 'providers', label: 'Providers', icon: <Plug size={16} /> }, ...(desktop ? [{ id: 'code' as const, label: 'Code', icon: <Code2 size={16} /> }] : []), { id: 'tools', label: 'Tools', icon: <Wrench size={16} /> }, { id: 'integrations', label: 'Integrations', icon: <Puzzle size={16} /> }, { id: 'mcp', label: 'MCP servers', icon: <Server size={16} /> }, { id: 'voice', label: 'Voice', icon: <Mic size={16} /> }, { id: 'sync', label: 'Sync', icon: <Cloud size={16} /> }, { id: 'prompts', label: 'Prompts', icon: <BookText size={16} /> }, { id: 'memory', label: 'Memory', icon: <Brain size={16} /> }, { id: 'plugins', label: 'Plugins', icon: <Blocks size={16} /> }, { id: 'usage', label: 'Usage', icon: <BarChart3 size={16} /> }, ...(admin ? [{ id: 'admin' as const, label: 'Admin', icon: <ShieldCheck size={16} /> }] : []), { id: 'general', label: 'General', icon: <SlidersHorizontal size={16} /> }] as const
+  const tabs = [{ id: 'providers', label: 'Providers', icon: <Plug size={16} /> }, ...(desktop ? [{ id: 'code' as const, label: 'Code', icon: <Code2 size={16} /> }] : []), { id: 'tools', label: 'Tools', icon: <Wrench size={16} /> }, { id: 'integrations', label: 'Integrations', icon: <Puzzle size={16} /> }, { id: 'mcp', label: 'MCP servers', icon: <Server size={16} /> }, { id: 'voice', label: 'Voice', icon: <Mic size={16} /> }, { id: 'sync', label: 'Sync', icon: <Cloud size={16} /> }, { id: 'published', label: 'Published', icon: <Globe size={16} /> }, { id: 'prompts', label: 'Prompts', icon: <BookText size={16} /> }, { id: 'memory', label: 'Memory', icon: <Brain size={16} /> }, { id: 'plugins', label: 'Plugins', icon: <Blocks size={16} /> }, { id: 'usage', label: 'Usage', icon: <BarChart3 size={16} /> }, ...(admin ? [{ id: 'admin' as const, label: 'Admin', icon: <ShieldCheck size={16} /> }] : []), { id: 'general', label: 'General', icon: <SlidersHorizontal size={16} /> }] as const
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center bg-black/30 p-4 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && closeSettings()}>
       <div className="glass-strong anim-pop flex h-[min(720px,90vh)] w-full max-w-5xl flex-col overflow-hidden rounded-[32px] sm:flex-row">
@@ -855,7 +858,7 @@ export function SettingsModal() {
         <div className="relative min-h-0 flex-1 overflow-y-auto p-6 sm:p-8">
           <IconButton className="absolute right-3 top-3 hidden sm:grid" onClick={closeSettings}><X size={18} /></IconButton>
           <h2 className="mb-4 text-lg font-semibold tracking-tight">{tabs.find((t) => t.id === settingsTab)?.label}</h2>
-          {settingsTab === 'providers' ? <Providers /> : settingsTab === 'tools' ? <Tools /> : settingsTab === 'integrations' ? <IntegrationsSettings /> : settingsTab === 'mcp' ? <Mcp /> : settingsTab === 'voice' ? <Voice /> : settingsTab === 'sync' ? <Sync /> : settingsTab === 'admin' ? <AdminPanel /> : settingsTab === 'code' ? <CodeSettings /> : settingsTab === 'usage' ? <UsageDashboard /> : settingsTab === 'prompts' ? <PromptsSettings /> : settingsTab === 'plugins' ? <PluginsSettings /> : settingsTab === 'memory' ? <MemorySettings /> : <General />}
+          {settingsTab === 'providers' ? <Providers /> : settingsTab === 'tools' ? <Tools /> : settingsTab === 'integrations' ? <IntegrationsSettings /> : settingsTab === 'mcp' ? <Mcp /> : settingsTab === 'voice' ? <Voice /> : settingsTab === 'sync' ? <Sync /> : settingsTab === 'published' ? <PublishedSettings /> : settingsTab === 'admin' ? <AdminPanel /> : settingsTab === 'code' ? <CodeSettings /> : settingsTab === 'usage' ? <UsageDashboard /> : settingsTab === 'prompts' ? <PromptsSettings /> : settingsTab === 'plugins' ? <PluginsSettings /> : settingsTab === 'memory' ? <MemorySettings /> : <General />}
         </div>
       </div>
     </div>

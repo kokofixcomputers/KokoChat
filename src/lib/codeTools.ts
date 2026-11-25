@@ -5,6 +5,7 @@ import { requireApproval, riskOf, rulePrefix } from './permissions'
 import { looseArgs } from './integrations'
 import { BROWSER_TOOLS, isBrowserTool, runBrowserTool } from './browser'
 import { ACTION_TOOLS, isActionTool, runActionTool } from './actions'
+import { TODO_TOOL, isTodoTool, runTodoTool } from './todos'
 
 /* ------------------------------- tool definitions ------------------------------- */
 const obj = (properties: Record<string, unknown>, required: string[] = []) => ({ type: 'object', properties, required, additionalProperties: false })
@@ -12,6 +13,7 @@ const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
 export const CODE_TOOLS: ToolDef[] = [
   ...BROWSER_TOOLS,
   ...ACTION_TOOLS,
+  TODO_TOOL,
   {
     name: 'read_file',
     description: 'Read a text file from the project. Returns numbered lines. Read a file before editing it. Large files: pass offset and limit to read a part.',
@@ -66,7 +68,7 @@ export const isCodeTool = (name: string) => NAMES.has(name)
 export const isCodeChat = (chatId?: string) => !!chatId && useStore.getState().chats.find((c) => c.id === chatId)?.mode === 'code'
 
 /* ------------------------------- how a call reads ------------------------------- */
-export interface CodeDescribe { icon: 'read' | 'edit' | 'create' | 'list' | 'find' | 'search' | 'run' | 'web' | 'shot' | 'action'; present: string; past: string; failed: string; subject?: string; extra?: string; code?: boolean }
+export interface CodeDescribe { icon: 'read' | 'edit' | 'create' | 'list' | 'find' | 'search' | 'run' | 'web' | 'shot' | 'action' | 'todo'; present: string; past: string; failed: string; subject?: string; extra?: string; code?: boolean }
 
 const hostOf = (u: unknown) => { try { return new URL(/^[a-z][a-z0-9+.-]*:/i.test(String(u)) ? String(u) : 'http://' + u).host } catch { return u ? String(u) : undefined } }
 const short = (s: string, n = 70) => (s.length > n ? s.slice(0, n - 1) + '…' : s)
@@ -82,6 +84,7 @@ export function describeCode(name: string, a: Record<string, any>, meta?: Record
     case 'list_files': return { icon: 'list', present: 'Looking at', past: 'Looked at', failed: "Couldn't list", subject: path && path !== '.' ? path : 'the project' }
     case 'find_files': return { icon: 'find', present: 'Finding files', past: 'Found files', failed: "Couldn't search for files", subject: a.pattern ? String(a.pattern) : undefined }
     case 'search_code': return { icon: 'search', present: 'Searching code for', past: 'Searched code for', failed: "Couldn't search for", subject: a.pattern ? `“${short(String(a.pattern), 40)}”` : undefined, extra: a.glob ? `in ${a.glob}` : undefined }
+    case 'todo_write': return { icon: 'todo', present: 'Updating the task list', past: 'Updated the task list', failed: "Couldn't update the task list" }
     case 'create_action': return { icon: 'action', present: 'Adding action', past: 'Added action', failed: "Couldn't add the action", subject: a.name ? String(a.name) : undefined }
     case 'remove_action': return { icon: 'action', present: 'Removing action', past: 'Removed action', failed: "Couldn't remove the action", subject: a.name ? String(a.name) : undefined }
     case 'list_actions': return { icon: 'action', present: 'Checking actions', past: 'Checked actions', failed: "Couldn't list actions" }
@@ -129,6 +132,7 @@ const diffSummary = (d: { added: number; removed: number }) => `+${d.added} −$
 
 export async function runCodeTool(name: string, a: Record<string, any>, ctx: Ctx): Promise<{ output: string; images?: string[] }> {
   if (isBrowserTool(name)) return runBrowserTool(name, a, ctx)
+  if (isTodoTool(name)) return runTodoTool(a, { chatId: ctx.chatId, update: ctx.update })
   if (isActionTool(name)) return runActionTool(name, a, { chatId: ctx.chatId, update: ctx.update })
   const k = need()
   const cwd = cwdOf(ctx.chatId)

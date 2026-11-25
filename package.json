@@ -67,7 +67,9 @@
       "target": [
         "dmg",
         "zip"
-      ]
+      ],
+      "identity": "-",
+      "hardenedRuntime": false
     },
     "win": {
       "target": [

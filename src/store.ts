@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { create } from 'zustand'
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware'
 import { get as idbGet, set as idbSet, del as idbDel } from 'idb-keyval'
-import type { ProjectAction, Memory, PluginRecord, Attachment, Chat, ChatSandbox, MessageVersion, Effort, McpServer, Message, Project, Provider, Settings, KbFile } from './types'
+import type { Todo, ProjectAction, Memory, PluginRecord, Attachment, Chat, ChatSandbox, MessageVersion, Effort, McpServer, Message, Project, Provider, Settings, KbFile } from './types'
 import type { UsageRow } from './lib/usage'
 import type { Overrides } from './lib/pricing'
 import { DEFAULT_PROMPTS } from './lib/prompts'
@@ -112,12 +112,14 @@ interface State {
   // transient
   panel: PanelState
   settingsOpen: boolean
-  settingsTab: 'providers' | 'code' | 'tools' | 'integrations' | 'mcp' | 'voice' | 'sync' | 'admin' | 'usage' | 'prompts' | 'plugins' | 'memory' | 'general'
+  settingsTab: 'providers' | 'code' | 'tools' | 'integrations' | 'mcp' | 'voice' | 'sync' | 'published' | 'admin' | 'usage' | 'prompts' | 'plugins' | 'memory' | 'general'
   appMode: 'chat' | 'code'
   coworkers: CoJob[]
   plugins: PluginRecord[]
   memories: Memory[]
   actions: ProjectAction[]
+  setTodos: (chatId: string, todos: Todo[]) => void
+  toggleTodo: (chatId: string, id: string) => void
   /** messages sent while the AI was still working, per chat (delivered after its next tool call, or when it finishes) */
   queue: Record<string, QueuedMsg[]>
   removeQueued: (chatId: string, id: string) => void
@@ -403,6 +405,8 @@ export const useStore = create<State>()(
         plugins: [],
         memories: [],
         actions: [],
+        setTodos: (chatId, todos) => patchChat(chatId, (c) => ({ ...c, todos: todos.length ? todos : undefined })),
+        toggleTodo: (chatId, id) => patchChat(chatId, (c) => ({ ...c, todos: (c.todos ?? []).map((t) => (t.id === id ? { ...t, status: t.status === 'completed' ? 'pending' : 'completed' } : t)) })),
         queue: {},
         removeQueued: (chatId, id) => set((s) => ({ queue: { ...s.queue, [chatId]: (s.queue[chatId] ?? []).filter((q) => q.id !== id) } })),
         sendQueuedNow: (chatId) => { get().streaming[chatId]?.abort(); setTimeout(() => drainQueue(chatId), 150) },

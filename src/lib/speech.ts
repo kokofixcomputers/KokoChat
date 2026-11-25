@@ -1,5 +1,6 @@
 import type { Provider, Settings } from '../types'
 import { authHeaders, cleanBase } from './providers'
+import { useStore } from '../store'
 
 /* ------------------------------ helpers ------------------------------ */
 export const STT_SUGGESTIONS: Record<string, string[]> = {
@@ -58,9 +59,26 @@ export async function transcribe(p: Provider, model: string, blob: Blob, languag
   return String(j.text ?? '').trim()
 }
 
+/** Send a recording to the KokoChat worker, which runs Whisper on Cloudflare Workers AI. */
+export async function transcribeKoko(blob: Blob, language?: string): Promise<string> {
+  const sync = useStore.getState().sync
+  const base = (sync.url || (import.meta.env.VITE_SYNC_URL as string | undefined) || '').replace(/\/+$/, '')
+  if (!base || !sync.token) throw new Error('Sign in under Settings → Sync to use KokoChat transcription, or pick another host in Settings → Voice.')
+  const res = await fetch(`${base}/v1/stt${language ? `?language=${encodeURIComponent(language)}` : ''}`, {
+    method: 'POST', headers: { Authorization: `Bearer ${sync.token}`, 'Content-Type': blob.type || 'application/octet-stream' }, body: blob,
+  })
+  const j = await res.json().catch(() => ({} as any))
+  if (!res.ok) throw new Error(`Transcription failed: ${j?.error ?? `${res.status} ${res.statusText}`}`)
+  return String(j.text ?? '').trim()
+}
+
 export async function startDictation(settings: Settings, providers: Provider[]): Promise<Dictation> {
   const { engine, providerId, model, language } = settings.stt
   let provider: Provider | undefined
+  if (engine === 'koko') {
+    const sy = useStore.getState().sync
+    if (!sy.token) throw new Error('Sign in under Settings → Sync to use KokoChat transcription, or pick another host in Settings → Voice.')
+  }
   if (engine === 'api') {
     provider = pickProvider(providers, providerId, ['openai', 'groq'])
     if (!provider) throw new Error('Add a provider with an API key, then pick a speech-to-text model in Settings → Voice.')
@@ -113,7 +131,7 @@ export async function startDictation(settings: Settings, providers: Provider[]):
       cleanup()
       const blob = new Blob(chunks, { type: mr.mimeType || 'audio/webm' })
       if (blob.size < 800) return ''
-      return transcribe(provider!, model, blob, language || undefined)
+      return engine === 'koko' ? transcribeKoko(blob, language || undefined) : transcribe(provider!, model, blob, language || undefined)
     },
   }
 }

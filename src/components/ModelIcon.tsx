@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LOCAL_ICONS } from '../lib/modelIconList'
-import { ProviderDot } from './TopBar'
+import { Plug } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 const REMOTE = 'https://developers.openai.com/images/api/models/icons'
@@ -59,3 +59,17 @@ export function ModelIcon({ model, preset, name, size = 22, className }: { model
     />
   )
 }
+
+export function ProviderDot({ preset, name, size = 20 }: { preset: string; name: string; size?: number }) {
+  const [bad, setBad] = useState(preset === 'custom')
+  return (
+    <span style={{ width: size, height: size }} className="grid shrink-0 place-items-center rounded-lg bg-white ring-1 ring-black/10">
+      {bad ? (
+        <Plug size={size * 0.55} className="text-neutral-700" />
+      ) : (
+        <img src={`/providers/${preset}.svg`} alt={name} onError={() => setBad(true)} style={{ width: size * 0.62, height: size * 0.62 }} />
+      )}
+    </span>
+  )
+}
+

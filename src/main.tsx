@@ -16,6 +16,13 @@ else if (/^\/s\/[\w-]+/.test(location.pathname)) import('./components/SharedPage
 else {
   import('./App').then((m) => {
     root().render(<StrictMode><m.default /></StrictMode>)
+    // tell the desktop shell how many agents are running so it can warn before closing
+    const koko = (window as any).koko
+    if (koko?.setBusy) import('./store').then((s) => {
+      let last = -1
+      const report = () => { const n = Object.keys(s.useStore.getState().streaming).length; if (n !== last) { last = n; koko.setBusy(n) } }
+      s.useStore.subscribe(report); report()
+    })
     if (import.meta.env.DEV) import('./store').then((s) => ((window as any).__store = s.useStore))
     if (import.meta.env.DEV) import('./lib/pluginHost').then((s) => ((window as any).__pluginUI = s.usePluginUI))
   })

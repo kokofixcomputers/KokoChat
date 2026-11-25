@@ -14,8 +14,9 @@ const chunks = (s: string) => {
 export async function usage(env: Env, userId: string) {
   const r = await env.DB.prepare('SELECT COALESCE(SUM(size), 0) AS used FROM items WHERE user_id = ? AND deleted = 0').bind(userId).first<{ used: number }>()
   const sh = await env.DB.prepare('SELECT COALESCE(SUM(size), 0) AS used FROM shares WHERE user_id = ?').bind(userId).first<{ used: number }>()
+  const ar = await env.DB.prepare('SELECT COALESCE(SUM(size), 0) AS used FROM artifacts WHERE user_id = ?').bind(userId).first<{ used: number }>()
   const u = await env.DB.prepare('SELECT quota_bytes FROM users WHERE user_id = ?').bind(userId).first<{ quota_bytes: number | null }>()
-  return { used: (r?.used ?? 0) + (sh?.used ?? 0), quota: u?.quota_bytes ?? quotaOf(env) }
+  return { used: (r?.used ?? 0) + (sh?.used ?? 0) + (ar?.used ?? 0), quota: u?.quota_bytes ?? quotaOf(env) }
 }
 
 export async function index(env: Env, userId: string, admin = false) {
@@ -99,6 +100,7 @@ export async function wipe(env: Env, userId: string) {
     env.DB.prepare('DELETE FROM blobs WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM items WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM shares WHERE user_id = ?').bind(userId),
+    env.DB.prepare('DELETE FROM artifacts WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM users WHERE user_id = ?').bind(userId),
   ])

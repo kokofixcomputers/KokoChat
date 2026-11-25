@@ -4,7 +4,8 @@ import { useStore } from '../store'
 import { Popover, IconButton } from './ui'
 import { presetOf } from '../lib/providers'
 import { cn } from '../lib/utils'
-import { ModelIcon } from './ModelIcon'
+import { ModelIcon, ProviderDot } from './ModelIcon'
+export { ProviderDot }
 import { setCompare } from '../lib/compare'
 import { NotebookPen, Share2, Columns2, MoreHorizontal } from 'lucide-react'
 import { useEffect } from 'react'
@@ -13,19 +14,6 @@ import { ModeSwitch } from './CodeUI'
 import { baseName, isDesktop, koko } from '../lib/desktop'
 import { DockToggle } from './Dock'
 import { PluginSlot } from './PluginSlot'
-
-export function ProviderDot({ preset, name, size = 20 }: { preset: string; name: string; size?: number }) {
-  const [bad, setBad] = useState(preset === 'custom')
-  return (
-    <span style={{ width: size, height: size }} className="grid shrink-0 place-items-center rounded-lg bg-white ring-1 ring-black/10">
-      {bad ? (
-        <Plug size={size * 0.55} className="text-neutral-700" />
-      ) : (
-        <img src={`/providers/${preset}.svg`} alt={name} onError={() => setBad(true)} style={{ width: size * 0.62, height: size * 0.62 }} />
-      )}
-    </span>
-  )
-}
 
 /** Which providers are folded shut in the model menus (remembered on this device). */
 function useFolded() {
@@ -74,7 +62,7 @@ function ModelPicker() {
             {groups.map(({ p, models }) => (
               <div key={p.id} className="pb-1">
                 <ProviderHeader p={p} count={models.length} open={!folded[p.id] || !!q.trim()} locked={!!q.trim()} onToggle={() => toggleFold(p.id)} />
-                {(!folded[p.id] || !!q.trim()) && models.slice(0, 80).map((m) => {
+                {(!folded[p.id] || !!q.trim()) && models.map((m) => {
                   const on = selected?.providerId === p.id && selected.model === m.id
                   return (
                     <button key={m.id} onClick={() => { select(p.id, m.id); close() }} className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-sm transition hover:bg-fg/5">
@@ -168,7 +156,7 @@ function MultiModelPicker() {
           {groups.map(({ p, models }) => (
             <div key={p.id} className="pb-1">
               <ProviderHeader p={p} count={models.length} open={!folded[p.id] || !!q.trim()} locked={!!q.trim()} onToggle={() => toggleFold(p.id)} />
-              {(!folded[p.id] || !!q.trim()) && models.slice(0, 80).map((m) => {
+              {(!folded[p.id] || !!q.trim()) && models.map((m) => {
                 const on = has(p.id, m.id)
                 const blocked = (!on && sel.length >= 4) || (on && sel.length <= 2)
                 return (

@@ -1,5 +1,7 @@
 export interface Env {
   DB: D1Database
+  /** Workers AI binding (speech-to-text) */
+  AI?: { run: (model: string, input: unknown) => Promise<any> }
   APP_NAME: string
   ALLOWED_ORIGINS: string
   ALLOWED_EMAILS: string

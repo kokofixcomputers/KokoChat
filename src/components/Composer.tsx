@@ -19,6 +19,7 @@ import { Quote, BookText, ShieldAlert } from 'lucide-react'
 import { PermissionPill } from './CodeUI'
 import { FieldMenu } from './PromptFieldMenu'
 import { PluginSlot } from './PluginSlot'
+import { TodoPanel } from './TodoUI'
 import { fillPrompt, expandSlash, promptFields, previewPrompt, usesInput, mainDefault } from '../lib/prompts'
 import { dropKb, indexFile, isPdf } from '../lib/kb'
 import { uid } from '../lib/utils'
@@ -192,6 +193,7 @@ export function Composer() {
       onDrop={(e) => { e.preventDefault(); setDrag(false); addFiles(e.dataTransfer.files) }}
       className={cn('glass-strong relative rounded-[28px] p-2.5 transition-all focus-within:ring-2 focus-within:ring-accent/30', drag && 'ring-2 ring-accent')}
     >
+      {code && activeId && <TodoPanel chatId={activeId} />}
       {bypass && activeId && (
         <div className="anim-pop mx-1 mb-2 flex items-center gap-2 rounded-2xl bg-danger/10 px-3.5 py-2 text-[13px] text-danger"><ShieldAlert size={15} className="shrink-0" /><span className="flex-1">Permissions are bypassed: the AI can run commands and change files without asking.</span><button onClick={() => useStore.getState().setCodePerm(activeId, 'ask')} className="shrink-0 rounded-full bg-danger/15 px-3 py-1 text-xs font-medium transition hover:bg-danger/25">Turn off</button></div>
       )}

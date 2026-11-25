@@ -10,6 +10,7 @@ import { CodeActivity } from './CodeActivity'
 import { PluginSlot } from './PluginSlot'
 import { MemoryPill } from './MemoryUI'
 import { ActionCard } from './ActionsPanel'
+import { TodoCard } from './TodoUI'
 import { AgentCard, AgentWaitRow, ReportsCard } from './AgentCard'
 import { isCodeTool } from '../lib/codeTools'
 import { ArtifactCard, SandboxCard, GenericToolPill, ReadPill, ResearchGroup, ImageGenCard, VideoGenCard, ReasoningBlock, SearchPill, SourcesBar } from './Blocks'
@@ -166,7 +167,7 @@ export const MessageView = memo(function MessageView({ chatId, m, last, latestUs
   blocks.forEach((b, i) => {
     const prev = items[items.length - 1]
     const integ = integOf(b)
-    if (b.type === 'tool' && isCodeTool(b.name) && b.name !== 'create_action') {
+    if (b.type === 'tool' && isCodeTool(b.name) && b.name !== 'create_action' && b.name !== 'todo_write') {
       // the agent's reads, edits and commands in a row read as one activity
       if (prev && 'cgroup' in prev) prev.cgroup.push(b)
       else items.push({ cgroup: [b], i })
@@ -206,6 +207,7 @@ export const MessageView = memo(function MessageView({ chatId, m, last, latestUs
       else if (b.name.startsWith('sandbox_')) out.push(<SandboxCard key={b.id} block={b} messageId={m.id} hasArtifact={!!b.artifactId} />)
       else if (b.name.startsWith('memory_')) out.push(<MemoryPill key={b.id} block={b} />)
       else if (b.name === 'create_action') out.push(<ActionCard key={b.id} block={b} />)
+      else if (b.name === 'todo_write') out.push(<TodoCard key={b.id} block={b} />)
       else if (b.name === 'spawn_agent') out.push(<AgentCard key={b.id} block={b} />)
       else if (b.name === 'wait_for_agents') out.push(<AgentWaitRow key={b.id} block={b} />)
       else if (b.name === 'ask_user') out.push(<AskCard key={b.id} block={b} />)

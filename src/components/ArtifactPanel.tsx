@@ -10,6 +10,7 @@ import { cn, download, downloadDataUrl, dataUrlExt } from '../lib/utils'
 import { SlidesViewer, downloadPptx } from './SlidesViewer'
 import { DiagramViewer, diagramPngDataUrl, diagramSvgString, tryLayout, useIsDark } from './Diagram'
 import { toast } from '../lib/toast'
+import { PublishMenu } from './PublishMenu'
 import { VideoPlayer } from './VideoPlayer'
 import { loadVideo } from '../lib/videogen'
 
@@ -89,6 +90,7 @@ export function ArtifactPanel({ artifact }: { artifact: Artifact }) {
         <IconButton title="Download" className="h-8 w-8" onClick={async () => { if (artifact.kind === 'slides') { try { await downloadPptx(artifact.content, artifact.title) } catch (e: any) { toast.error(e.message) } return } if (artifact.kind === 'video') { const b = await loadVideo(artifact.id); if (!b) return toast.error('This video is not stored on this device.'); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${artifact.title.replace(/\W+/g, '-').toLowerCase()}.mp4`; a.click(); setTimeout(() => URL.revokeObjectURL(u), 4000); return } if (artifact.kind === 'diagram') return saveDiagram(false); const n = `${artifact.title.replace(/\W+/g, '-').toLowerCase()}.${ext(artifact)}`; artifact.kind === 'image' ? downloadDataUrl(n, artifact.content) : download(n, artifact.content) }}><Download size={16} /></IconButton>
         {artifact.kind === 'diagram' && <IconButton title="Download PNG" className="h-8 w-8" onClick={() => saveDiagram(true)}><FileImage size={16} /></IconButton>}
         {artifact.kind === 'app' && <IconButton title="Open live app" className="h-8 w-8" onClick={() => window.open(artifact.content, '_blank')}><ExternalLink size={16} /></IconButton>}
+        {artifact.kind === 'html' && <PublishMenu artifact={artifact} />}
         {artifact.kind === 'html' && (
           <IconButton title="Open in new tab" className="h-8 w-8" onClick={() => window.open(URL.createObjectURL(new Blob([artifact.content], { type: 'text/html' })), '_blank')}><ExternalLink size={16} /></IconButton>
         )}

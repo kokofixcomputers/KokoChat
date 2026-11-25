@@ -4,6 +4,8 @@ import * as admin from './admin'
 import * as shares from './shares'
 import { proxySandbox } from './sandbox'
 import { proxyCloudflare } from './cfproxy'
+import { transcribe } from './stt'
+import * as artifacts from './artifacts'
 import { oneMinConfig, oneMinExchange } from './oauth1min'
 import { corsHeaders, HttpError, json, type Env } from './util'
 
@@ -23,6 +25,7 @@ export default {
       else if (req.method === 'GET' && path === '/v1/oauth/1min/config') res = json(oneMinConfig(env))
       else if (req.method === 'POST' && path === '/v1/oauth/1min/exchange') res = json(await oneMinExchange(env, await body()))
       else if (path.startsWith('/v1/cf/')) res = await proxyCloudflare(req, path.slice('/v1/cf'.length))
+      else if (req.method === 'GET' && path.startsWith('/artifact/')) res = await artifacts.serve(env, path.slice('/artifact/'.length))
       else if (req.method === 'GET' && path.startsWith('/v1/public/shares/')) res = json(await shares.getPublicShare(env, path.slice('/v1/public/shares/'.length)))
       else {
         const s = await authenticate(env, req)
@@ -36,6 +39,10 @@ export default {
         else if (req.method === 'POST' && path === '/v1/sync/get') res = json(await sync.get(env, s.userId, await body()))
         else if (req.method === 'POST' && path === '/v1/sync/put') res = json(await sync.put(env, s.userId, await body()))
         else if (req.method === 'DELETE' && path === '/v1/account') { await sync.wipe(env, s.userId); res = json({ ok: true }) }
+        else if (req.method === 'POST' && path === '/v1/artifacts') res = json(await artifacts.publish(env, s.userId, await body()))
+        else if (req.method === 'GET' && path === '/v1/artifacts') res = json(await artifacts.list(env, s.userId))
+        else if (req.method === 'DELETE' && path.startsWith('/v1/artifacts/')) res = json(await artifacts.unpublish(env, s.userId, path.slice('/v1/artifacts/'.length)))
+        else if (req.method === 'POST' && path === '/v1/stt') res = await transcribe(env, req)
         else if (req.method === 'POST' && path === '/v1/shares') res = json(await shares.createShare(env, s.userId, await body()))
         else if (req.method === 'GET' && path === '/v1/shares') res = json(await shares.listShares(env, s.userId))
         else if (req.method === 'DELETE' && path.startsWith('/v1/shares/')) res = json(await shares.deleteShare(env, s.userId, path.slice('/v1/shares/'.length)))
