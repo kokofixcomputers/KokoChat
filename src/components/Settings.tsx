@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { isTauri } from '../lib/tauri'
+import { MigrationSection } from './Migration'
 import { askConfirm } from '../lib/confirm'
 import { del as idbDel } from 'idb-keyval'
 import { Check, ChevronDown, Eye, EyeOff, KeyRound, Loader2, Monitor, Moon, Plug, Plus, RefreshCw, Sun, Trash2, X, Wrench, SlidersHorizontal, CircleAlert, Globe, Server, ShieldCheck, Mic, Volume2, Square, ImageIcon, Cloud, Terminal, Puzzle, BarChart3, BookText, Video, Code2 } from 'lucide-react'
@@ -818,9 +820,10 @@ function General() {
   const { settings, setSettings } = useStore()
   return (
     <div className="flex flex-col gap-5">
+      <MigrationSection />
       <Appearance />
       <NotificationSettings />
-      {isDesktop() && <QuickAskSettings />}
+      {isDesktop() && !isTauri() && <QuickAskSettings />}
       <FilesSettings />
       <label className="text-sm font-medium">System prompt
         <textarea value={settings.systemPrompt} onChange={(e) => setSettings({ systemPrompt: e.target.value })} rows={5} className={cn(field, 'mt-2 h-auto resize-y py-2.5 font-normal leading-relaxed')} /></label>

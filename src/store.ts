@@ -372,7 +372,8 @@ export const useStore = create<State>()(
         if (c2 && !c2.titled && draft.status === 'done' && (!isLane || opts?.lane === 0) && history.filter((m) => m.role === 'user').length === 1) {
           patchChat(chatId, (c) => ({ ...c, titled: true }))
           const t = await generateTitle(provider, model, [...history, draft])
-          if (t) get().renameChat(chatId, t)
+          // not if you renamed the chat yourself while the name was being written
+          if (t && get().chats.find((c) => c.id === chatId)?.title === c2.title) get().renameChat(chatId, t)
         }
       }
 
@@ -492,7 +493,7 @@ export const useStore = create<State>()(
             return { chats, activeId: s.activeId === id ? next?.id ?? null : s.activeId, panel: s.activeId === id ? null : s.panel }
           })
         },
-        renameChat: (id, title) => patchChat(id, (c) => ({ ...c, title })),
+        renameChat: (id, title) => patchChat(id, (c) => ({ ...c, title, titled: true })),
         pinChat: (id) => patchChat(id, (c) => ({ ...c, pinned: !c.pinned })),
         clearChat: (id) => { get().streaming[id]?.abort(); patchChat(id, (c) => ({ ...c, messages: [], title: 'New chat', titled: false })); set({ panel: null }) },
 
@@ -743,7 +744,11 @@ setMcpPersist((id, patch) => useStore.getState().updateMcp(id, patch))
 
 export const useHydrated = () => {
   const [h, setH] = useState(useStore.persist.hasHydrated())
-  useEffect(() => useStore.persist.onFinishHydration(() => setH(true)), [])
+  useEffect(() => {
+    const off = useStore.persist.onFinishHydration(() => setH(true))
+    if (useStore.persist.hasHydrated()) setH(true) // it may have finished between the first render and now
+    return off
+  }, [])
   return h
 }
 export type { Effort }

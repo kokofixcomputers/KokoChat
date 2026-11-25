@@ -1,4 +1,4 @@
-name: Nightly Electron Build
+name: Nightly Build
 
 on:
   push:
@@ -51,10 +51,72 @@ jobs:
           name: windows-artifacts
           path: release/*
 
+  # The Rust (Tauri) app. It uses the same interface as the Electron app and ships in the same release.
+  build-rust:
+    name: Build Rust app (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: mac
+            os: macos-latest
+            bundles: app,dmg
+          - name: windows
+            os: windows-latest
+            bundles: nsis
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Use stable Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust-app-rewrite/src-tauri/target
+          key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-app-rewrite/src-tauri/Cargo.lock') }}
+          restore-keys: rust-${{ runner.os }}-${{ runner.arch }}-
+      - name: Install dependencies
+        run: npm ci
+      # builds the web app first (beforeBuildCommand in tauri.conf.json), then the Rust app
+      - name: Build Rust app
+        working-directory: rust-app-rewrite
+        run: npx --yes @tauri-apps/cli@2.11.3 build --bundles ${{ matrix.bundles }}
+      - name: Collect mac files
+        if: matrix.name == 'mac'
+        run: |
+          mkdir -p rust-release
+          BUNDLE=rust-app-rewrite/src-tauri/target/release/bundle
+          ARCH=$(uname -m)
+          cp "$BUNDLE"/dmg/*.dmg "rust-release/Koko-Rust-mac-${ARCH}.dmg"
+          ditto -c -k --keepParent "$BUNDLE/macos/Koko Rust.app" "rust-release/Koko-Rust-mac-${ARCH}.zip"
+      - name: Collect Windows files
+        if: matrix.name == 'windows'
+        shell: bash
+        run: |
+          mkdir -p rust-release
+          cp rust-app-rewrite/src-tauri/target/release/bundle/nsis/*.exe rust-release/Koko-Rust-Setup-x64.exe
+      - name: Upload Rust artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-${{ matrix.name }}-artifacts
+          path: rust-release/*
+          if-no-files-found: error
+
   create-release:
     name: Create nightly tag & release
     runs-on: ubuntu-latest
-    needs: [ build-macos, build-windows ]
+    needs: [ build-macos, build-windows, build-rust ]
+    # The Electron builds are required. If a Rust build fails, the release still goes out with whatever was built.
+    if: ${{ !cancelled() && needs.build-macos.result == 'success' && needs.build-windows.result == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - name: Download mac artifacts
@@ -67,6 +129,12 @@ jobs:
         with:
           name: windows-artifacts
           path: artifacts/windows
+      - name: Download Rust artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: rust-*-artifacts
+          path: artifacts/rust
+          merge-multiple: true
       - name: Create tag name
         id: tag
         run: |
@@ -81,5 +149,6 @@ jobs:
             artifacts/mac/*Koko-*-mac.zip
             artifacts/mac/*Koko-*.dmg
             artifacts/windows/**Koko Setup*.exe
+            artifacts/rust/Koko-Rust-*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

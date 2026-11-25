@@ -19,6 +19,24 @@ export function ModeSwitch({ compact }: { compact?: boolean }) {
   return <div className={cn('flex rounded-full bg-fg/6 p-0.5', !compact && 'mb-2')}>{item('chat', 'Chat', <MessageSquare size={14} />)}{item('code', 'Code', <Code2 size={14} />)}</div>
 }
 
+/** The title bar's Chat / Code switch: one pill that slides to the chosen side. */
+export function ModeSlider() {
+  const { appMode, setAppMode } = useStore()
+  if (!isDesktop()) return null
+  const code = appMode === 'code'
+  return (
+    <div role="tablist" aria-label="Mode" className="app-nodrag relative grid h-8 w-[172px] grid-cols-2 rounded-full bg-fg/6 p-0.5">
+      <span aria-hidden className="absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] rounded-full bg-surface shadow-sm ring-1 ring-line transition-transform duration-300 ease-[cubic-bezier(.3,1.3,.5,1)] motion-reduce:transition-none" style={{ transform: code ? 'translateX(100%)' : 'translateX(0)' }} />
+      {([['chat', 'Chat', <MessageSquare key="i" size={13} />], ['code', 'Code', <Code2 key="i" size={13} />]] as const).map(([m, label, icon]) => (
+        <button key={m} role="tab" aria-selected={appMode === m} onClick={() => setAppMode(m)} className={cn('relative z-10 flex items-center justify-center gap-1.5 rounded-full text-[13px] font-medium transition-colors', appMode === m ? 'text-fg' : 'text-muted hover:text-fg')}>{icon}{label}</button>
+      ))}
+    </div>
+  )
+}
+
+/** Where the window has our own title bar, the switch lives there; elsewhere it stays in the sidebar. */
+export const hasTitleBar = () => isDesktop() && koko()?.platform === 'darwin'
+
 /** Pick a folder and start a Code session in it. */
 export async function startSession(cwd?: string) {
   const k = koko()

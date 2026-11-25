@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Koko Rust",
+  "version": "0.1.0",
+  "identifier": "cc.kokodev.koko.rust",
+  "build": {
+    "beforeBuildCommand": { "script": "npm run build", "cwd": "../.." },
+    "beforeDevCommand": { "script": "npm run dev -- --port 5183 --strictPort", "cwd": "../.." },
+    "devUrl": "http://localhost:5183",
+    "frontendDist": "../../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Koko",
+        "width": 1360,
+        "height": 880,
+        "minWidth": 760,
+        "minHeight": 520,
+        "backgroundColor": "#0d0d0e",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 18, "y": 22 },
+        "dragDropEnabled": false
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "category": "DeveloperTool",
+    "macOS": { "signingIdentity": "-" }
+  }
+}

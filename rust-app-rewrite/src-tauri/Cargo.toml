@@ -1,0 +1,43 @@
+[package]
+name = "koko-tauri"
+version = "0.1.0"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["unstable"] }  # unstable: child web views for the side-panel browser
+tauri-plugin-http = { version = "2", features = ["stream"] }
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-dialog = "2"
+serde = "1"
+serde_json = "1"
+base64 = "0.22"
+sha1 = "0.10"
+fancy-regex = "0.14"
+portable-pty = "0.9"
+trash = "5"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6"
+objc2-user-notifications = "0.3"
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSBundle", "NSSet", "NSArray", "NSString", "NSError", "NSDictionary", "NSData"] }
+objc2-app-kit = { version = "0.3", features = ["NSImage", "NSBitmapImageRep", "NSImageRep"] }
+objc2-web-kit = { version = "0.3", features = ["WKWebView", "WKSnapshotConfiguration", "block2", "objc2-app-kit"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.7"

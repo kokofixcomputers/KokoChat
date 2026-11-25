@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { ChevronRight, Cloud, CloudOff, FolderInput, FolderOpen, GitFork, Loader2, MessageSquare, PanelLeftClose, Pencil, Pin, PinOff, Plus, Search, Settings as Cog, SlidersHorizontal, Trash2, MessageCircle, Check, CalendarClock } from 'lucide-react'
 import { useStore } from '../store'
 import type { Chat } from '../types'
 import { IconButton } from './ui'
 import { syncNow } from '../lib/sync'
 import { cn, fmtBytes } from '../lib/utils'
-import { ModeSwitch, startSession } from './CodeUI'
+import { ModeSwitch, hasTitleBar, startSession } from './CodeUI'
 import { PluginSlot } from './PluginSlot'
 import { baseName, isDesktop } from '../lib/desktop'
 
@@ -20,6 +20,10 @@ function Row({ c, active, nested, onMove }: { c: Chat; active: boolean; nested?:
   const { openChat, deleteChat, renameChat, pinChat, setSidebar, streaming } = useStore()
   const [edit, setEdit] = useState(false)
   const [v, setV] = useState(c.title)
+  const cancelled = useRef(false)
+  // always start from the title as it is now: the AI may have named the chat since this row first appeared
+  const startEdit = () => { cancelled.current = false; setV(c.title); setEdit(true) }
+  const finish = () => { const next = v.trim(); if (!cancelled.current && next && next !== c.title) renameChat(c.id, next); setEdit(false) }
   return (
     <div
       onClick={() => { openChat(c.id); if (innerWidth < 900) setSidebar(false) }}
@@ -28,15 +32,15 @@ function Row({ c, active, nested, onMove }: { c: Chat; active: boolean; nested?:
       {streaming[c.id] ? <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent" /> : c.forkedFrom ? <GitFork size={15} className="shrink-0 text-faint" /> : <MessageSquare size={15} className="shrink-0 text-faint" />}
       {edit ? (
         <input autoFocus value={v} onChange={(e) => setV(e.target.value)} onClick={(e) => e.stopPropagation()}
-          onBlur={() => { renameChat(c.id, v.trim() || c.title); setEdit(false) }}
-          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEdit(false) }}
+          onBlur={finish}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { cancelled.current = true; setEdit(false) } }}
           className="min-w-0 flex-1 rounded bg-transparent outline-none" />
       ) : <span className="min-w-0 flex-1 truncate">{c.title}</span>}
       {!edit && (
         <span className="hidden items-center group-hover:flex" onClick={(e) => e.stopPropagation()}>
           <button title="Pin" onClick={() => pinChat(c.id)} className="grid h-6 w-6 place-items-center rounded-full text-faint hover:text-fg">{c.pinned ? <PinOff size={13} /> : <Pin size={13} />}</button>
           {onMove && <button title="Move to project" onClick={onMove} className="grid h-6 w-6 place-items-center rounded-full text-faint hover:text-fg"><FolderInput size={13} /></button>}
-          <button title="Rename" onClick={() => setEdit(true)} className="grid h-6 w-6 place-items-center rounded-full text-faint hover:text-fg"><Pencil size={13} /></button>
+          <button title="Rename" onClick={startEdit} className="grid h-6 w-6 place-items-center rounded-full text-faint hover:text-fg"><Pencil size={13} /></button>
           <button title="Delete" onClick={() => deleteChat(c.id)} className="grid h-6 w-6 place-items-center rounded-full text-faint hover:text-danger"><Trash2 size={13} /></button>
         </span>
       )}
@@ -104,7 +108,7 @@ export function Sidebar() {
         </div>
         <IconButton title="Close sidebar" onClick={() => setSidebar(false)}><PanelLeftClose size={18} /></IconButton>
       </div>
-      <ModeSwitch />
+      {!hasTitleBar() && <ModeSwitch />}
       <button data-tour="newchat" onClick={(e) => { if (code) { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); if (recentFolders.length) setFolderMenu({ x: r.left, y: r.bottom + 6 }); else void startSession(); return } newChat(); if (innerWidth < 900) setSidebar(false) }} className="mb-2 flex h-11 items-center gap-2.5 rounded-full bg-fg px-4 text-sm font-medium text-bg transition hover:opacity-90 active:scale-[0.98]">
         <Plus size={17} />{code ? 'New session' : 'New chat'}
       </button>

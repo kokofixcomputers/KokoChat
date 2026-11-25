@@ -17,7 +17,11 @@ const DIST = path.join(__dirname, '..', 'dist')
 // the bundled app is served from app://koko so absolute paths like /providers/x.svg keep working
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }])
 
-if (!app.requestSingleInstanceLock()) app.quit()
+// export mode for moving to the Rust app (see export.cjs)
+const EXPORT_TO = process.env.KOKO_EXPORT || ''
+if (EXPORT_TO && process.env.KOKO_USER_DATA) app.setPath('userData', process.env.KOKO_USER_DATA)
+
+if (!app.requestSingleInstanceLock()) { if (EXPORT_TO) app.exit(3); else app.quit() } // 3: Koko is already open
 
 let win = null
 let quitting = false
@@ -145,6 +149,7 @@ function registerIpc() {
 
 app.setAppUserModelId('cc.kokodev.koko') // needed for notifications on Windows
 app.whenReady().then(() => {
+  if (EXPORT_TO) return require('./export.cjs').run(EXPORT_TO)
   cp.init(path.join(app.getPath('userData'), 'checkpoints'))
   serveApp()
   relaxCors()

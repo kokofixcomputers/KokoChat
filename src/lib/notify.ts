@@ -1,6 +1,7 @@
 import { useStore } from '../store'
 import { koko } from './desktop'
 import { decide, rootOf, type Approval } from './permissions'
+import { isTauri } from './tauri'
 
 /**
  * System notifications for when the window is not in front: the AI finished, or it is waiting for your approval or an answer.
@@ -29,18 +30,19 @@ const clean = (t: string, n = 130) => t.replace(/```[\s\S]*?```/g, ' ').replace(
 const titleOf = (chatId: string) => { const c = useStore.getState().chats.find((x) => x.id === rootOf(chatId)); return (c?.title && c.title !== 'New chat' ? c.title : c?.mode === 'code' ? 'Koko Code' : 'Koko') }
 const open = (chatId: string) => () => useStore.getState().openChat(rootOf(chatId))
 
-async function show(id: string, title: string, body: string, o: { actions?: string[]; click?: () => void; action?: (i: number) => void } = {}) {
+async function show(id: string, title: string, body: string, o: { actions?: string[]; click?: () => void; action?: (i: number) => void } = {}): Promise<boolean> {
   const sound = useStore.getState().settings.notifications.sound
   handlers.set(id, { click: o.click, action: o.action })
   const k = koko()
-  if (k) { wire(); const ok = await k.notify.show({ id, title, body, actions: o.actions, sound }); if (!ok) handlers.delete(id); return }
+  if (k) { wire(); const ok = await k.notify.show({ id, title, body, actions: o.actions, sound }); if (!ok) handlers.delete(id); return ok }
   // in a browser: plain notifications (they have no buttons), if the user allowed them
-  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') { handlers.delete(id); return }
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') { handlers.delete(id); return false }
   try {
     const n = new Notification(title, { body, tag: id, silent: !sound })
     n.onclick = () => { window.focus(); o.click?.(); n.close() }
     n.onclose = () => handlers.delete(id)
-  } catch { handlers.delete(id) }
+    return true
+  } catch { handlers.delete(id); return false }
 }
 
 export function closeNotice(id: string) {
@@ -88,10 +90,14 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 export async function notifyTest(): Promise<string> {
   if (!(await ensureNotificationPermission())) return 'Notifications are blocked. Allow them for this site in your browser settings.'
   const id = 'test:' + Date.now()
-  void show(id, 'Koko · test', 'This is how a notification looks. In the desktop app it also has Allow and Deny buttons.', {
+  const shown = show(id, 'Koko · test', 'This is how a notification looks. In the desktop app it also has Allow and Deny buttons.', {
     actions: ['Allow', 'Deny'],
     action: (i) => { void import('./toast').then((m) => m.toast.info(i === 0 ? 'You pressed Allow' : 'You pressed Deny')) },
     click: () => undefined,
   })
+  if (!(await shown)) {
+    const why = isTauri() ? (await import('./tauriBridge')).notifyProblem : ''
+    return why || 'The system did not accept the notification. Check your notification settings for Koko.'
+  }
   return ''
 }

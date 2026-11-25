@@ -10,7 +10,7 @@ import { setCompare } from '../lib/compare'
 import { NotebookPen, Share2, Columns2, MoreHorizontal } from 'lucide-react'
 import { useEffect } from 'react'
 import { FolderOpen } from 'lucide-react'
-import { ModeSwitch } from './CodeUI'
+import { ModeSwitch, hasTitleBar } from './CodeUI'
 import { baseName, isDesktop, koko } from '../lib/desktop'
 import { DockToggle } from './Dock'
 import { PluginSlot } from './PluginSlot'
@@ -184,7 +184,7 @@ export function TopBar() {
     <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-3 pt-3">
       <div className="glass-strong pointer-events-auto flex items-center gap-1 rounded-full p-1">
         {!sidebarOpen && !mac && <IconButton title="Open sidebar" onClick={() => setSidebar(true)}><PanelLeft size={18} /></IconButton>}
-        {!sidebarOpen && isDesktop() && <ModeSwitch compact />}
+        {!sidebarOpen && isDesktop() && !hasTitleBar() && <ModeSwitch compact />}
         {settings.compare.enabled && !code ? <MultiModelPicker /> : <ModelPicker />}
         {cwd && <button onClick={() => window.koko?.openFolder(cwd)} title={`${cwd} (click to open)`} className="flex h-10 max-w-[11rem] items-center gap-2 rounded-full px-3 text-sm text-muted transition hover:bg-fg/5 hover:text-fg max-sm:hidden"><FolderOpen size={15} className="shrink-0 text-accent" /><span className="truncate">{baseName(cwd)}</span></button>}
         <div className="mx-1 h-5 w-px bg-line max-sm:hidden" />

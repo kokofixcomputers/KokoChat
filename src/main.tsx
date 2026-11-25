@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import 'katex/dist/katex.min.css'
+import { initTauri } from './lib/tauri'
 
 const root = () => createRoot(document.getElementById('root')!)
 const q = new URLSearchParams(location.search)
@@ -14,7 +15,7 @@ else if (location.pathname.startsWith('/oauth/1min')) import('./components/OneMi
 else if (location.pathname.startsWith('/oauth/callback')) import('./lib/mcpAuth').then((m) => m.handleCallback())
 else if (/^\/s\/[\w-]+/.test(location.pathname)) import('./components/SharedPage').then((m) => root().render(<StrictMode><m.SharedPage /></StrictMode>))
 else {
-  import('./App').then((m) => {
+  initTauri().catch((e) => console.error(e)).then(() => import('./App')).then((m) => {
     root().render(<StrictMode><m.default /></StrictMode>)
     // tell the desktop shell how many agents are running so it can warn before closing
     const koko = (window as any).koko

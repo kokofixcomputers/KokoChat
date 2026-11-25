@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useMigrationResult } from './components/Migration'
 import { ConfirmHost } from './components/ConfirmHost'
 import { useHydrated, useStore } from './store'
 import { Sidebar } from './components/Sidebar'
@@ -113,6 +114,7 @@ export default function App() {
     if (s.selected?.providerId === providerId && s.selected.model === model) return
     if (s.providers.some((p) => p.id === providerId && p.models.some((m) => m.id === model))) useStore.setState({ selected: { providerId, model } })
   }, [hydrated, chatModel])
+  useMigrationResult(hydrated)
   // ⌘, from the Mac app menu
   useEffect(() => koko()?.onOpenSettings?.(() => useStore.getState().openSettings()), [])
   // a question typed into the floating quick-ask window: start a new chat with it

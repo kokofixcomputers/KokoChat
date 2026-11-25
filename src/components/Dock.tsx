@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react'
+import { isTauri } from '../lib/tauri'
+import { createTauriWebview } from '../lib/tauriBridge'
 import { Blocks, FolderTree, Bot, Square, PanelRight, ArrowLeft, ArrowRight, Globe, Loader2, Plus, RotateCw, SquareTerminal, X } from 'lucide-react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -76,6 +78,17 @@ const toUrl = (raw: string) => {
   return 'https://duckduckgo.com/?q=' + encodeURIComponent(t)
 }
 
+/** The Rust shell's browser page: a native view that follows this box. It fills `target` before the parent's effects run. */
+function TauriPage({ url, target }: { url: string; target: React.MutableRefObject<any> }) {
+  const host = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = createTauriWebview(host.current!, url)
+    target.current = el
+    return () => el.destroy()
+  }, []) // eslint-disable-line
+  return <div ref={host} className="absolute inset-0" />
+}
+
 function BrowserView({ tab, visible }: { tab: DockTab; visible: boolean }) {
   const wv = useRef<any>(null)
   const rename = useDock((s) => s.rename)
@@ -116,7 +129,9 @@ function BrowserView({ tab, visible }: { tab: DockTab; visible: boolean }) {
         <input ref={input} value={url} onChange={(e) => setUrl(e.target.value)} onFocus={(e) => e.currentTarget.select()} placeholder="Search or enter a URL" spellCheck={false} className="h-8 min-w-0 flex-1 rounded-full bg-fg/5 px-3.5 text-[13px] outline-none transition placeholder:text-faint focus:bg-fg/8 focus:ring-2 focus:ring-accent/40" />
       </form>
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-white">
-        {started ? <webview ref={wv} src={started} allowpopups={true} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} /> : (
+        {started ? (isTauri()
+          ? <TauriPage url={started} target={wv} />
+          : <webview ref={wv} src={started} allowpopups={true} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />) : (
           <div className="grid h-full place-items-center bg-bg p-6 text-center">
             <div>
               <Globe size={26} className="mx-auto mb-3 text-faint" />
