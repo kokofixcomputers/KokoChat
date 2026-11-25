@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { isTauri } from '../lib/tauri'
 import { MigrationSection } from './Migration'
 import { askConfirm } from '../lib/confirm'
 import { del as idbDel } from 'idb-keyval'
@@ -823,7 +822,7 @@ function General() {
       <MigrationSection />
       <Appearance />
       <NotificationSettings />
-      {isDesktop() && !isTauri() && <QuickAskSettings />}
+      {isDesktop() && <QuickAskSettings />}
       <FilesSettings />
       <label className="text-sm font-medium">System prompt
         <textarea value={settings.systemPrompt} onChange={(e) => setSettings({ systemPrompt: e.target.value })} rows={5} className={cn(field, 'mt-2 h-auto resize-y py-2.5 font-normal leading-relaxed')} /></label>

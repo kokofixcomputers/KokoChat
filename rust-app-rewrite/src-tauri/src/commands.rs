@@ -9,9 +9,16 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 pub fn trusted(w: &Webview) -> Result<(), String> {
+    ours(w, "main")
+}
+/// The floating quick-ask box, which may only use its own commands.
+pub fn trusted_quick(w: &Webview) -> Result<(), String> {
+    ours(w, "quick")
+}
+fn ours(w: &Webview, label: &str) -> Result<(), String> {
     // the app's page is tauri://localhost on macOS and http://tauri.localhost on Windows
     let ours = w.url().is_ok_and(|u| u.scheme() == "tauri" || (cfg!(windows) && u.host_str() == Some("tauri.localhost")) || (cfg!(debug_assertions) && u.host_str() == Some("localhost")));
-    if w.label() == "main" && ours {
+    if w.label() == label && ours {
         Ok(())
     } else {
         Err("Not allowed.".into())

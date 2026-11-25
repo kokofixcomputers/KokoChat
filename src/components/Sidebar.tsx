@@ -101,7 +101,7 @@ export function Sidebar() {
   const onMove = (c: Chat) => (e: React.MouseEvent) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMove({ chatId: c.id, x: r.left, y: r.bottom + 6 }) }
 
   return (
-    <aside className="glass-strong anim-slide-in-left flex h-full w-72 shrink-0 flex-col overflow-hidden rounded-[28px] p-2.5">
+    <aside className="glass-strong anim-slide-in-left flex h-full w-full flex-col overflow-hidden rounded-[28px] p-2.5">
       <div className="flex items-center justify-between pb-2 pl-2">
         <div className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight">
           <span className="grid h-8 w-8 place-items-center rounded-xl bg-accent text-accent-fg"><MessageCircle size={17} fill="currentColor" /></span>Koko

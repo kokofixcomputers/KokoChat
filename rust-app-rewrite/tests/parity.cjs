@@ -74,7 +74,7 @@ const cases = [
   ['checkpoint:info', { key: 't1' }], ['checkpoint:revert', { key: 't1' }], ['git:status', {}, 'after undo'], ['checkpoint:revert', { key: 't1' }, 'already'], ['checkpoint:info', { key: 'none' }],
   ['git:stage', { paths: ['ok.cjs', '--force'] }], ['git:status', {}], ['git:unstage', { all: true }], ['git:discard', { paths: ['ok.cjs', 'bad.json'] }], ['git:status', {}], ['git:commit', { message: '  ' }], ['git:commit', { message: 'nothing staged' }], ['git:commit', { message: 'second', stageAll: true }], ['git:log', { n: 5 }], ['git:branches', {}],
   ['git:checkout', { branch: '-x' }], ['git:checkout', { branch: 'a..b' }], ['git:branchchanges', {}, 'no base'], ['git:checkout', { branch: 'feat/one', create: true }], ['fs:write', { path: 'feature.txt', content: 'f\n' }], ['git:commit', { message: 'feature', stageAll: true }], ['git:branchchanges', {}],
-  ['shell:run', { id: '1', command: 'echo out; echo err >&2; exit 3' }], ['shell:run', { id: '2', command: 'printf "%s" "$PAGER $TERM $GIT_TERMINAL_PROMPT"' }], ['shell:run', { id: '3', command: 'sleep 20', timeoutMs: 1200 }, 'timeout'], ['shell:run', { id: '4', command: 'head -c 150000 /dev/zero | tr "\\0" a' }, 'long output'],
+  ['shell:run', { id: '1', command: 'echo out; sleep 0.3; echo err >&2; exit 3' }], ['shell:run', { id: '2', command: 'printf "%s" "$PAGER $TERM $GIT_TERMINAL_PROMPT"' }], ['shell:run', { id: '3', command: 'sleep 20', timeoutMs: 1200 }, 'timeout'], ['shell:run', { id: '4', command: 'head -c 150000 /dev/zero | tr "\\0" a' }, 'long output'],
 ]
 ;(async () => {
   let pass = 0; const fails = []

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { clampWidth, dragResize } from './lib/resize'
 import { useMigrationResult } from './components/Migration'
 import { ConfirmHost } from './components/ConfirmHost'
 import { useHydrated, useStore } from './store'
@@ -69,6 +70,7 @@ export default function App() {
   const appMode = useStore((s) => s.appMode)
   const activeCwd = useStore((s) => s.chats.find((c) => c.id === s.activeId)?.cwd)
   const [dw, setDw] = useState(() => Number(localStorage.getItem('koko:dockw')) || 520)
+  const [sw, setSw] = useState(() => clampWidth(Number(localStorage.getItem('koko:sidew')) || 288, 220, 480))
   const desktop = isDesktop()
   const mac = desktop && koko()?.platform === 'darwin'
   const activePluginTab = useDock((s) => s.tabs.find((t) => t.id === s.active)?.kind === 'plugin')
@@ -97,13 +99,7 @@ export default function App() {
     return () => { window.removeEventListener('keydown', key); window.removeEventListener('koko:import', imp); window.removeEventListener('koko:search', openSearch) }
   }, [newChat])
 
-  const startResize = (e: React.MouseEvent) => {
-    e.preventDefault()
-    const move = (ev: MouseEvent) => { const w = Math.min(Math.max(innerWidth - ev.clientX - 12, 360), Math.min(1100, innerWidth - 420)); setPw(w); localStorage.setItem('koko:panelw', String(Math.round(w))) }
-    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); document.body.style.userSelect = '' }
-    document.body.style.userSelect = 'none'
-    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up)
-  }
+  const startResize = (e: React.PointerEvent) => dragResize(e, (x) => clampWidth(innerWidth - x - 12, 360, Math.min(1100, innerWidth - (sidebarOpen ? sw : 0) - 380)), setPw, 'koko:panelw')
   useEffect(() => { if (hydrated && !chats.find((c) => c.id === activeId)) newChat() }, [hydrated]) // eslint-disable-line
   // the model menu shows the model of the chat you are looking at, and follow-ups use it (a chat started from quick ask keeps the model you picked there)
   const chatModel = useStore((s) => { const c = s.chats.find((x) => x.id === s.activeId); return c?.providerId && c?.model ? `${c.providerId}\n${c.model}` : '' })
@@ -135,13 +131,8 @@ export default function App() {
     ? chats.flatMap((c) => c.messages).find((m) => m.id === panel.messageId)?.artifacts?.find((a) => a.id === panel.artifactId)
     : undefined
 
-  const startDockResize = (e: React.MouseEvent) => {
-    e.preventDefault()
-    const move = (ev: MouseEvent) => { const w = Math.min(Math.max(innerWidth - ev.clientX - 12, 320), Math.min(1000, innerWidth - 480)); setDw(w); localStorage.setItem('koko:dockw', String(Math.round(w))) }
-    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); document.body.style.userSelect = '' }
-    document.body.style.userSelect = 'none'
-    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up)
-  }
+  const startDockResize = (e: React.PointerEvent) => dragResize(e, (x) => clampWidth(innerWidth - x - 12, 320, Math.min(1000, innerWidth - (sidebarOpen ? sw : 0) - 380)), setDw, 'koko:dockw')
+  const startSidebarResize = (e: React.PointerEvent) => dragResize(e, (x) => clampWidth(x - 12, 220, Math.min(480, innerWidth * 0.4)), setSw, 'koko:sidew')
 
   if (!hydrated) return null
   return (
@@ -152,19 +143,22 @@ export default function App() {
         {sidebarOpen && (
           <>
             <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] lg:hidden" onClick={() => setSidebar(false)} />
-            <div className="fixed inset-y-3 left-3 z-50 lg:static lg:z-auto"><Sidebar /></div>
+            <div style={{ ['--sw' as any]: sw + 'px' }} className="fixed inset-y-3 left-3 z-50 w-72 lg:relative lg:inset-auto lg:z-20 lg:w-[var(--sw)] lg:max-w-[40vw] lg:shrink-0">
+              <Sidebar />
+              <div role="separator" aria-orientation="vertical" aria-label="Resize sidebar" title="Drag to resize, double-click to reset" onPointerDown={startSidebarResize} onDoubleClick={() => { setSw(288); localStorage.removeItem('koko:sidew') }} className="absolute -right-2.5 inset-y-6 z-10 hidden resize-grip w-2 cursor-col-resize text-fg transition hover:text-accent lg:block" />
+            </div>
           </>
         )}
         <main className="relative min-w-0 flex-1">{coworkOpen && isDesktop() ? <Coworker /> : <><TopBar /><ChatView /></>}</main>
         {panel && (artifact || panel.kind === 'sources') && (
-          <div style={{ ['--pw' as any]: pw + 'px' }} className="group/rs fixed inset-3 z-40 lg:static lg:inset-auto lg:z-auto lg:w-[var(--pw)] lg:shrink-0">
-            <div onMouseDown={startResize} onDoubleClick={() => { setPw(640); localStorage.removeItem('koko:panelw') }} className="absolute -left-2.5 inset-y-6 z-10 hidden w-2 cursor-col-resize rounded-full transition hover:bg-accent/40 lg:block" />
+          <div style={{ ['--pw' as any]: pw + 'px' }} className="group/rs fixed inset-3 z-40 lg:relative lg:inset-auto lg:z-20 lg:w-[var(--pw)] lg:shrink-0">
+            <div onPointerDown={startResize} onDoubleClick={() => { setPw(640); localStorage.removeItem('koko:panelw') }} className="absolute -left-2.5 inset-y-6 z-10 hidden resize-grip w-2 cursor-col-resize text-fg transition hover:text-accent lg:block" />
             {artifact ? <ArtifactPanel artifact={artifact} /> : panel.kind === 'sources' ? <SourcesPanel messageId={panel.messageId} /> : null}
           </div>
         )}
         {desktop && (
-          <div style={{ ['--dw' as any]: dw + 'px' }} className={showDock ? 'group/dk fixed inset-3 z-40 lg:static lg:inset-auto lg:z-auto lg:w-[var(--dw)] lg:shrink-0' : 'hidden'}>
-            {showDock && <div onMouseDown={startDockResize} onDoubleClick={() => { setDw(520); localStorage.removeItem('koko:dockw') }} className="absolute -left-2.5 inset-y-6 z-10 hidden w-2 cursor-col-resize rounded-full transition hover:bg-accent/40 lg:block" />}
+          <div style={{ ['--dw' as any]: dw + 'px' }} className={showDock ? 'group/dk fixed inset-3 z-40 lg:relative lg:inset-auto lg:z-20 lg:w-[var(--dw)] lg:shrink-0' : 'hidden'}>
+            {showDock && <div onPointerDown={startDockResize} onDoubleClick={() => { setDw(520); localStorage.removeItem('koko:dockw') }} className="absolute -left-2.5 inset-y-6 z-10 hidden resize-grip w-2 cursor-col-resize text-fg transition hover:text-accent lg:block" />}
             <Dock cwd={activeCwd} />
           </div>
         )}

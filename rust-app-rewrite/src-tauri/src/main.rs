@@ -5,6 +5,7 @@ mod browser;
 mod commands;
 mod notify;
 mod pty;
+mod quick;
 
 use koko_tauri::core;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -75,11 +76,14 @@ fn main() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(Busy(AtomicU32::new(0)))
+        .manage(quick::Quick::default())
         .invoke_handler(tauri::generate_handler![
             commands::koko, commands::shell_kill, commands::pty_open, commands::pty_write, commands::pty_resize, commands::pty_kill,
             commands::pick_folder, commands::reveal, commands::open_folder, commands::set_busy, commands::close_answer,
             notify::notify_show, notify::notify_close,
+            quick::quick_get, quick::quick_set, quick::quick_hide, quick::quick_resize, quick::quick_submit, quick::quick_capture, quick::quick_open_screen_settings,
             commands::migrate_status, commands::migrate_export, commands::migrate_done, commands::migrate_cleanup,
             browser::browser_create, browser::browser_bounds, browser::browser_nav, browser::browser_close, browser::browser_state, browser::browser_op
         ])
@@ -94,10 +98,11 @@ fn main() {
                     app.exit(0);
                 }
             }
-            _ => {}
+            other => quick::menu_event(app, other),
         })
         .setup(|app| {
             notify::init(app.handle());
+            quick::init(app.handle());
             core::checkpoints::init(app.path().app_data_dir()?.join("checkpoints"));
             std::thread::spawn(|| {
                 core::shell::shell_env(); // warm up your shell's PATH in the background
@@ -105,6 +110,12 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() == "quick" {
+                if let tauri::WindowEvent::Focused(false) = event {
+                    quick::blurred(window.app_handle());
+                }
+                return;
+            }
             // the web view does not always notice losing focus (a hidden window), and notifications depend on it
             if let tauri::WindowEvent::Focused(focused) = event {
                 let _ = window.app_handle().emit_to("main", "koko:focus", *focused);
@@ -119,6 +130,8 @@ fn main() {
                     }
                 } else if !free {
                     api.prevent_close();
+                } else {
+                    window.app_handle().exit(0); // the hidden quick-ask box must not keep the app running
                 }
             }
         })

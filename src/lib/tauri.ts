@@ -1,6 +1,11 @@
 /** The Rust (Tauri) desktop shell in rust-app-rewrite/. It runs the same interface as the Electron app. */
 export const isTauri = () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
+/** Call before the quick-ask page starts. */
+export async function initTauriQuick() {
+  if (isTauri()) await (await import('./tauriBridge')).installQuickBridge()
+}
+
 /** Call before the app starts. Does nothing outside the Tauri shell. */
 export async function initTauri() {
   if (!isTauri()) return

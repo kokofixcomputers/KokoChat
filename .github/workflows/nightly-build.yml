@@ -87,6 +87,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
       # builds the web app first (beforeBuildCommand in tauri.conf.json), then the Rust app
+      # the cache keeps earlier installers (under an old version or app name): only this build's may be collected
+      - name: Remove old installers
+        shell: bash
+        run: rm -rf rust-app-rewrite/src-tauri/target/release/bundle
       - name: Build Rust app
         working-directory: rust-app-rewrite
         run: npx --yes @tauri-apps/cli@2.11.3 build --bundles ${{ matrix.bundles }}

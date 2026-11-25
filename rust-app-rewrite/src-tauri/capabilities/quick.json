@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "quick",
+  "description": "The floating quick-ask box: it can listen for events and use its own few commands, nothing else.",
+  "webviews": ["quick"],
+  "permissions": ["core:default"]
+}

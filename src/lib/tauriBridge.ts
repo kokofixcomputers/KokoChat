@@ -1,5 +1,5 @@
 /** Gives the Rust shell the same `window.koko` bridge the Electron preload provides, so Code mode runs unchanged. */
-import type { KokoApi } from './desktop'
+import type { KokoApi, QuickPayload } from './desktop'
 
 type Invoke = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>
 
@@ -18,6 +18,7 @@ export async function installTauriBridge() {
     channel<{ id: string; chunk: string }>('koko:shell:data'), channel<{ id: string; data: string }>('koko:pty:data'), channel<{ id: string; code: number }>('koko:pty:exit'),
     channel<number>('koko:close-request'), channel<null>('koko:open-settings'), channel<string>('koko:browser:open'), channel<BrowserEvent>('koko:browser:event'),
   ])
+  const [quickShow, quickSubmit] = await Promise.all([channel<null>('koko:quick:show'), channel<QuickPayload>('koko:quick:submit')])
   const [notifyEvent, focus] = await Promise.all([channel<{ id: string; type: 'click' | 'action'; index?: number }>('koko:notify:event'), channel<boolean>('koko:focus')])
   // notifications only appear when you are not looking: ask the window itself, the web view can miss it
   let focused = true
@@ -32,7 +33,6 @@ export async function installTauriBridge() {
   const ops = (prefix: string, names: string[]) => Object.fromEntries(names.map((n) => [n, op(`${prefix}:${n}`)])) as any
   const send = (cmd: string, args: Record<string, unknown>) => { void call(cmd, args).catch((e) => console.error(cmd, e)) }
 
-  const noQuick = { enabled: false, shortcut: '', menuBar: false, registered: false, defaultShortcut: '' }
   const later = 'is not in the Rust app yet.'
   const nothing = () => () => {}
 
@@ -60,12 +60,8 @@ export async function installTauriBridge() {
     onOpenSettings: (cb) => openSettings(() => cb()),
     onCloseRequest: closeRequest,
     closeAnswer: (ok) => send('close_answer', { ok }),
+    quick: quickBridge(call, quickShow, quickSubmit),
     // not ported yet
-    quick: {
-      submit: () => {}, hide: () => {}, resize: () => {}, selectReady: () => {}, selectDone: () => {}, openScreenSettings: async () => {},
-      capture: async () => ({ error: `Screen capture ${later}` }), onShow: nothing, onSubmit: nothing, onSelectImage: nothing,
-      getConfig: async () => noQuick, setConfig: async () => ({ ...noQuick, error: `Quick ask ${later}` }),
-    },
     oauth: { popup: async () => ({ error: `Signing in with 1minRelay ${later} Paste an API key instead.` }) },
     notify: {
       show: async (note) => {
@@ -79,6 +75,34 @@ export async function installTauriBridge() {
     },
   }
   window.koko = api
+}
+
+type Subscribe<T> = (cb: (v: T) => void) => () => void
+
+function quickBridge(call: Invoke, show: Subscribe<null>, submitted: Subscribe<QuickPayload>): KokoApi['quick'] {
+  const send = (cmd: string, args?: Record<string, unknown>) => { void call(cmd, args).catch((e) => console.error(cmd, e)) }
+  return {
+    submit: (payload) => send('quick_submit', { payload }),
+    hide: () => send('quick_hide'),
+    resize: (height) => send('quick_resize', { height }),
+    capture: () => call<{ dataUrl?: string; cancelled?: boolean; error?: string }>('quick_capture').catch((e) => ({ error: String(e) })),
+    openScreenSettings: () => call<void>('quick_open_screen_settings'),
+    onShow: (cb) => show(() => cb()),
+    onSubmit: submitted,
+    getConfig: () => call('quick_get'),
+    setConfig: (patch) => call('quick_set', { patch }),
+    // the Rust app uses the system's own area selector, so there is no overlay page
+    selectReady: () => {}, selectDone: () => {}, onSelectImage: () => () => {},
+  }
+}
+
+/** The floating quick-ask box gets only the quick-ask part of the bridge: it must not touch files, the shell or the saved data. */
+export async function installQuickBridge() {
+  const [{ invoke }, { getCurrentWebview }] = await Promise.all([import('@tauri-apps/api/core'), import('@tauri-apps/api/webview')])
+  const shown = new Set<(v: null) => void>()
+  await getCurrentWebview().listen<null>('koko:quick:show', () => shown.forEach((f) => f(null)))
+  const quick = quickBridge(invoke as Invoke, (cb) => { shown.add(cb); return () => { shown.delete(cb) } }, () => () => {})
+  window.koko = { isElectron: true, platform: /Mac/.test(navigator.platform) ? 'darwin' : 'win32', quick } as unknown as KokoApi
 }
 
 /** Why the last notification was not shown (empty when it was). */

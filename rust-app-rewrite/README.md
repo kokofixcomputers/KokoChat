@@ -22,7 +22,7 @@ Needs Rust, `cargo install tauri-cli`, and `npm install` in the parent folder.
 
 Chat, custom top bar, Code mode (files, edits, search, commands, git, undo, sub-agents, task list, permissions),
 side panel (terminal, files, browser), agent browser control, running-agents close warning, Cmd+, ,
-and moving over from Electron (Settings → General, shown when Electron data exists).
+Quick Ask (shortcut, menu bar icon, area capture on macOS), and moving over from Electron (Settings → General, shown when Electron data exists).
 
 ## Different from Electron
 
@@ -31,6 +31,7 @@ and moving over from Electron (Settings → General, shown when Electron data ex
 - Browser tabs are native views above the page; they hide while a menu or dialog covers their spot.
 - The JavaScript syntax check needs `node` on your PATH.
 - Editing refuses files that are not UTF-8.
+- Quick Ask captures with the system's own area selector (needs the Screen Recording permission).
 - Browser control and the build are macOS only so far (commands and terminal use Unix calls).
 
 ## Notifications
@@ -44,7 +45,7 @@ and macOS asks for permission the first time: answer the prompt in the top-right
 
 ## Not ported yet
 
-Quick Ask, menu bar icon, global shortcut, screen capture, 1minRelay sign-in popup.
+1minRelay sign-in popup. Screen capture on Windows.
 
 ## Moving from Electron
 

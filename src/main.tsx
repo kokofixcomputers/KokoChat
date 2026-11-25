@@ -2,14 +2,14 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import 'katex/dist/katex.min.css'
-import { initTauri } from './lib/tauri'
+import { initTauri, initTauriQuick } from './lib/tauri'
 
 const root = () => createRoot(document.getElementById('root')!)
 const q = new URLSearchParams(location.search)
 
 // The floating quick-ask window and the screenshot overlay are separate, tiny pages: they must not load the app's store
 // (two windows saving the same data would overwrite each other).
-if (q.has('quick')) import('./components/QuickAsk').then((m) => root().render(<m.QuickAsk />))
+if (q.has('quick')) initTauriQuick().catch((e) => console.error(e)).then(() => import('./components/QuickAsk')).then((m) => root().render(<m.QuickAsk />))
 else if (q.has('select')) import('./components/SelectOverlay').then((m) => root().render(<m.SelectOverlay />))
 else if (location.pathname.startsWith('/oauth/1min')) import('./components/OneMinCallback').then((m) => root().render(<m.OneMinCallback />))
 else if (location.pathname.startsWith('/oauth/callback')) import('./lib/mcpAuth').then((m) => m.handleCallback())

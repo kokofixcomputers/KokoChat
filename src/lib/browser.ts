@@ -21,7 +21,7 @@ export const BROWSER_TOOLS: ToolDef[] = [
   {
     name: 'browser_read',
     description: 'Read the page in a tab: its title, URL, the visible text, and a numbered list of the interactive elements (links, buttons, inputs). Use the numbers (refs) with browser_click and browser_type. Refs change after every read, so read again after the page changes.',
-    parameters: obj({ tab }),
+    parameters: obj({ tab, text_offset: { type: 'number', description: 'Continue a long page: the character position given at the end of the previous read.' } }),
   },
   {
     name: 'browser_click',
@@ -118,19 +118,76 @@ async function settle(el: any, ms = 400) {
 
 /* ------------------------------ page scripts ------------------------------ */
 /* these run inside the page; they must not use anything from this file */
-function snapshotScript() {
+function snapshotScript(from: number, max: number) {
   const SEL = 'a[href],button,input:not([type=hidden]),select,textarea,summary,[role=button],[role=link],[role=tab],[role=menuitem],[role=checkbox],[role=switch],[role=option],[onclick],[contenteditable=""],[contenteditable=true]'
-  const vis = (el: Element) => { const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false; const s = getComputedStyle(el); return s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0' }
-  const inView = (el: Element) => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth }
-  const all = [...document.querySelectorAll(SEL)].filter(vis)
+  const SKIP = ['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'SVG', 'HEAD']
+  const styleOf = (el: Element) => (el.ownerDocument.defaultView || window).getComputedStyle(el)
+  const found: Element[] = []
+  const out: string[] = []
+  let size = 0
+  const put = (t: string) => { if (size < 400000) { out.push(t); size += t.length } }
+  // innerText alone misses web components (shadow roots), frames, and parts the browser has not drawn yet: walk the page itself
+  const walk = (node: any, shown: boolean, pre: boolean) => {
+    if (node.nodeType === 3) { if (shown) put(pre ? node.nodeValue : String(node.nodeValue).replace(/\s+/g, ' ')); return }
+    if (node.nodeType === 11 || node.nodeType === 9) { for (const c of node.childNodes) walk(c, shown, pre); return }
+    if (node.nodeType !== 1) return
+    const tag = String(node.tagName).toUpperCase()
+    if (SKIP.includes(tag)) return
+    const st = styleOf(node)
+    if (st.display === 'none') return
+    const see = st.visibility !== 'hidden'
+    if (see && node.matches(SEL)) found.push(node)
+    if (tag === 'BR') { put('\n'); return }
+    if (tag === 'IFRAME' || tag === 'FRAME') {
+      let doc: Document | null = null
+      try { doc = node.contentDocument } catch { /* another site */ }
+      if (doc && doc.body) { put('\n'); walk(doc.body, see, false); put('\n') }
+      else if (see && node.src) put('\n[A frame from another site that cannot be read from here: ' + node.src + ' (open it with browser_open to read it)]\n')
+      return
+    }
+    const block = !/^(inline|contents)/.test(st.display)
+    if (block) put(st.display === 'table-cell' ? '\t' : '\n')
+    const keep = pre || /^pre/.test(st.whiteSpace)
+    if (tag === 'IMG' && see && node.alt) put(' [image: ' + node.alt + '] ')
+    if (node.shadowRoot) walk(node.shadowRoot, see, keep)
+    else if (tag === 'SLOT' && node.assignedNodes().length) for (const c of node.assignedNodes()) walk(c, see, keep)
+    else if (tag !== 'TEXTAREA' && tag !== 'SELECT') for (const c of node.childNodes) walk(c, see, keep)
+    if (block) put('\n')
+  }
+  if (document.body) walk(document.body, true, false)
+  else if (document.documentElement) put(document.documentElement.textContent || '')
+  const text = out.join('').replace(/[  ]+\n/g, '\n').replace(/\n[ ]+/g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+
+  const vis = (el: Element) => { const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false; return styleOf(el).opacity !== '0' }
+  // where an element is on the visible page, counting the frames it sits in
+  const inView = (el: Element) => {
+    const r = el.getBoundingClientRect(); let top = r.top, left = r.left
+    for (let f: any = el.ownerDocument.defaultView?.frameElement; f; f = f.ownerDocument.defaultView?.frameElement) { const q = f.getBoundingClientRect(); top += q.top; left += q.left }
+    return top + r.height > 0 && top < innerHeight && left + r.width > 0 && left < innerWidth
+  }
+  const all = found.filter(vis)
   const ordered = [...all.filter(inView), ...all.filter((e) => !inView(e))].slice(0, 90)
   ;(window as any).__kokoEls = ordered
   const lab = (el: any) => String(el.getAttribute('aria-label') || el.innerText || el.placeholder || el.title || el.alt || el.value || el.name || '').replace(/\s+/g, ' ').trim().slice(0, 70)
   return {
-    url: location.href, title: document.title, scrollY: Math.round(scrollY), maxScroll: Math.max(0, Math.round(document.documentElement.scrollHeight - innerHeight)), total: all.length,
-    text: (document.body?.innerText ?? '').replace(/\n{3,}/g, '\n\n').slice(0, 6000),
+    url: location.href, title: document.title, scrollY: Math.round(scrollY), maxScroll: Math.max(0, Math.round((document.documentElement?.scrollHeight ?? 0) - innerHeight)), total: all.length,
+    text: text.slice(from, from + max), textLength: text.length,
     els: ordered.map((el: any, i) => { const tag = el.tagName.toLowerCase(); const type = tag === 'input' ? el.type : ''; return { ref: i + 1, tag, type, role: el.getAttribute('role') || '', label: lab(el), value: (tag === 'input' && type !== 'password') || tag === 'textarea' ? String(el.value || '').slice(0, 60) : '', href: tag === 'a' ? String(el.getAttribute('href') || '').slice(0, 100) : '', below: !inView(el), checked: el.checked === true, disabled: el.disabled === true } }),
   }
+}
+
+/** A fingerprint of what is on the page, to tell when it has stopped changing. */
+function pulseScript() {
+  let chars = 0, nodes = 0
+  const look = (root: any) => {
+    for (const el of root.querySelectorAll('*')) {
+      nodes++
+      if (el.shadowRoot) { chars += (el.shadowRoot.textContent || '').trim().length; look(el.shadowRoot) }
+      if (el.tagName === 'IFRAME') { try { const d = el.contentDocument; if (d?.body) { chars += (d.body.textContent || '').trim().length; look(d) } } catch { /* another site */ } }
+    }
+  }
+  if (document.body) { chars += (document.body.innerText || '').trim().length; look(document) }
+  return { ready: document.readyState === 'complete', chars, nodes }
 }
 
 function locateScript(ref: number) {
@@ -138,14 +195,23 @@ function locateScript(ref: number) {
   if (!el || !el.isConnected) return null
   el.scrollIntoView({ block: 'center', inline: 'center' })
   const r = el.getBoundingClientRect()
+  let x = r.left + r.width / 2, y = r.top + r.height / 2
+  for (let f: any = el.ownerDocument.defaultView?.frameElement; f; f = f.ownerDocument.defaultView?.frameElement) { const q = f.getBoundingClientRect(); x += q.left + f.clientLeft; y += q.top + f.clientTop }
   const label = String(el.getAttribute('aria-label') || el.innerText || el.placeholder || el.title || el.value || '').replace(/\s+/g, ' ').trim().slice(0, 60)
-  return { x: r.left + r.width / 2, y: r.top + r.height / 2, label, tag: el.tagName.toLowerCase() }
+  return { x, y, label, tag: el.tagName.toLowerCase() }
 }
 
 function selectAllScript() {
-  const a: any = document.activeElement
+  let a: any = document.activeElement
+  // the focused field may be inside a web component or a frame
+  for (;;) {
+    let inner: any = a?.shadowRoot?.activeElement
+    if (!inner && a?.tagName === 'IFRAME') { try { inner = a.contentDocument?.activeElement } catch { /* another site */ } }
+    if (!inner) break
+    a = inner
+  }
   if (a && typeof a.select === 'function') a.select()
-  else document.execCommand('selectAll')
+  else (a?.ownerDocument ?? document).execCommand('selectAll')
   return true
 }
 
@@ -157,6 +223,22 @@ async function run<T>(op: Parameters<NonNullable<typeof window.koko>['browser']>
   const r = await need().browser(op, wc, args)
   if (!r.ok) throw new Error(r.error.message)
   return r.data as T
+}
+
+const PAGE_TEXT = 12000
+
+/** Many pages fill in their content after loading: wait (a few seconds at most) until it stops changing. */
+async function quiet(wc: number, signal: AbortSignal) {
+  const start = Date.now()
+  let last = '', since = start
+  while (Date.now() - start < 8000 && !signal.aborted) {
+    const p = await run<{ ready: boolean; chars: number; nodes: number }>('exec', wc, { code: call(pulseScript) }).catch(() => null)
+    const now = JSON.stringify(p)
+    if (now !== last) { last = now; since = Date.now() }
+    // a page with nothing on it yet gets longer to produce something
+    else if (p?.ready && Date.now() - since >= (p.chars ? 600 : 2500)) return
+    await sleep(250)
+  }
 }
 
 const fmtEl = (e: any) => {
@@ -206,15 +288,18 @@ export async function runBrowserTool(name: string, a: Record<string, any>, ctx: 
   }
 
   if (name === 'browser_read') {
-    const s = await run<any>('exec', t.wc, { code: call(snapshotScript) })
+    await quiet(t.wc, ctx.signal)
+    const from = Math.max(0, Math.floor(Number(a.text_offset) || 0))
+    const s = await run<any>('exec', t.wc, { code: call(snapshotScript, from, PAGE_TEXT) })
     meta({ url: s.url, title: s.title, summary: `${s.els.length} elements` })
     const out = [
       `Page: "${s.title}" — ${s.url}`,
       `Scroll: ${s.scrollY}px of ${s.maxScroll}px${s.maxScroll > s.scrollY ? ' (more below)' : ''}`,
       `Interactive elements${s.total > s.els.length ? ` (first ${s.els.length} of ${s.total})` : ''}:`,
       s.els.length ? s.els.map(fmtEl).join('\n') : '(none)',
-      '', 'Page text:', s.text || '(no text)',
+      '', from ? `Page text (from character ${from}):` : 'Page text:', s.text || (from ? '(nothing more)' : '(no text. If you expected some, the page may still be loading: read it again, or take a browser_screenshot)'),
     ]
+    if (from + s.text.length < s.textLength) out.push(`…[${s.textLength - from - s.text.length} more characters. Call browser_read with text_offset ${from + s.text.length} to continue]`)
     return { output: out.join('\n') }
   }
 
