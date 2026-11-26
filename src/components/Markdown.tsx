@@ -1,15 +1,31 @@
-import { memo, useMemo, useState, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import remarkMath from 'remark-math'
-import rehypeKatex from 'rehype-katex'
-import { useEffect } from 'react'
 import { Check, Copy } from 'lucide-react'
 import type { Source } from '../types'
 import { Favicon } from './ui'
 import { cn } from '../lib/utils'
 import { toast } from '../lib/toast'
+import { prepareMarkdown } from '../lib/mathText'
+
+type MathPlugin = typeof import('../lib/mathRender').mathPlugin
+let mathPlugin: MathPlugin | undefined
+let mathLoading: Promise<void> | undefined
+
+/** Fetches KaTeX the first time a message needs it. Until then (or if it fails) the LaTeX shows as source. */
+function useMathPlugin(needed: boolean) {
+  const [, setReady] = useState(false)
+  useEffect(() => {
+    if (!needed || mathPlugin) return
+    let dead = false
+    mathLoading ??= import('../lib/mathRender').then((m) => { mathPlugin = m.mathPlugin }, () => { mathLoading = undefined })
+    mathLoading.then(() => { if (!dead && mathPlugin) setReady(true) })
+    return () => { dead = true }
+  }, [needed])
+  return needed ? mathPlugin : undefined
+}
 
 function nodeText(n: ReactNode): string {
   if (typeof n === 'string') return n
@@ -93,31 +109,9 @@ export function Cite({ n, source }: { n: number; source?: Source }) {
   )
 }
 
-/** Normalise \( \) and \[ \] LaTeX delimiters to $$ so remark-math picks them up (skips code). */
-function withMath(md: string) {
-  return md
-    .split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g)
-    .map((seg, i) =>
-      i % 2
-        ? seg
-        : seg
-            .replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => '\n$$\n' + m + '\n$$\n')
-            .replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => '$$' + m + '$$'),
-    )
-    .join('')
-}
-
-/** Turn [1] / [1][2] into links the renderer swaps for citation pills (skips code). */
-function withCites(md: string, hasSources: boolean) {
-  if (!hasSources) return md
-  return md
-    .split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g)
-    .map((seg, i) => (i % 2 ? seg : seg.replace(/\[(\d{1,3})\](?!\()/g, '[$1](#cite-$1)')))
-    .join('')
-}
-
 export const Markdown = memo(function Markdown({ text, sources, small, className }: { text: string; sources?: Source[]; small?: boolean; className?: string }) {
-  const src = useMemo(() => withCites(withMath(text), !!sources?.length), [text, sources])
+  const { text: src, math } = useMemo(() => prepareMarkdown(text, !!sources?.length), [text, sources])
+  const katex = useMathPlugin(math)
   const components = useMemo(
     () => ({
       a: ({ href, children, ...rest }: any) => {
@@ -125,14 +119,15 @@ export const Markdown = memo(function Markdown({ text, sources, small, className
         if (m) { const n = +m[1]; return <Cite n={n} source={sources?.find((s) => s.n === n)} /> }
         return <a href={href} target="_blank" rel="noreferrer" {...rest}>{children}</a>
       },
-      pre: ({ children }: any) => <CodeBlock>{children}</CodeBlock>,
+      // display maths that KaTeX hasn't rendered yet is plain source, not a code block
+      pre: ({ children }: any) => /\bmath-display\b/.test(children?.props?.className ?? '') ? <pre className="math-source">{children}</pre> : <CodeBlock>{children}</CodeBlock>,
       table: ({ children }: any) => <div className="my-4 overflow-x-auto rounded-xl border border-line"><table>{children}</table></div>,
     }),
     [sources],
   )
   return (
     <div className={cn(small ? 'md md-sm' : 'md', className)}>
-      <ReactMarkdown remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }], [rehypeHighlight, { detect: false, ignoreMissing: true }]]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]} rehypePlugins={[...(katex ? [katex] : []), [rehypeHighlight, { detect: false, ignoreMissing: true }]]} components={components}>
         {src}
       </ReactMarkdown>
     </div>

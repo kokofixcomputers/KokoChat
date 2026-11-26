@@ -230,7 +230,7 @@ export function systemPrompt(s: Settings, search: boolean, artifacts: boolean, c
   const parts = [
     s.systemPrompt.trim(),
     chatSystem?.trim() ? `Custom instructions for this conversation:\n${chatSystem.trim()}` : '',
-    `Current date: ${new Date().toDateString()}. Format answers in clean Markdown. Be direct and accurate. Never claim you ran a tool, executed code, searched, or created something unless you actually called the tool in this conversation and received its result. If you did not call a tool, do not describe a result; either call it now or say plainly that you have not.`,
+    `Current date: ${new Date().toDateString()}. Format answers in clean Markdown. Maths renders as LaTeX: write inline maths as $…$ and display equations as $$…$$ on their own lines, never inside code blocks unless the user wants the LaTeX source, and write a literal dollar sign as \\$ if it could be mistaken for maths. Be direct and accurate. Never claim you ran a tool, executed code, searched, or created something unless you actually called the tool in this conversation and received its result. If you did not call a tool, do not describe a result; either call it now or say plainly that you have not.`,
   ]
   if (search)
     parts.push(

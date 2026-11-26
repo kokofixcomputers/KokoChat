@@ -138,6 +138,11 @@ body {
 .md th { font-weight: 600; background: var(--surface-2); white-space: nowrap; }
 .md th:first-child { border-top-left-radius: 12px; } .md th:last-child { border-top-right-radius: 12px; }
 .md img { max-width: 100%; border-radius: 16px; }
+/* maths: KaTeX draws in the text colour, so both themes work. Wide display equations scroll inside the message. */
+.md .katex { font-size: 1.12em; overflow-wrap: normal; }
+.md .katex-display { margin: 0.9em 0; padding: 0.3em 0; overflow-x: auto; overflow-y: hidden; }
+.md pre.math-source { margin: 0.9em 0; overflow-x: auto; white-space: pre-wrap; font-family: var(--font-mono); font-size: 0.86em; color: var(--muted); }
+.md .katex-error { font-family: var(--font-mono); font-size: 0.86em; white-space: pre-wrap; }
 .md-sm { font-size: calc(13.5px * var(--tx, 1)); line-height: 1.6; color: var(--muted); }
 .md-sm p { margin: 0.5em 0; } .md-sm strong { color: var(--fg); font-weight: 550; }
 
