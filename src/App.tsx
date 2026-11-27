@@ -130,7 +130,8 @@ export default function App() {
     })
   }, [hydrated])
   useEffect(() => { if (hydrated) { startAutoSync(); startPlugins(); void resumeOneMinSignIn(); if (isDesktop()) startScheduler() } }, [hydrated])
-  useEffect(() => { if (innerWidth < 900) setSidebar(false) }, []) // eslint-disable-line
+  // only once saved data has loaded: changing anything earlier saves the empty starting state over it
+  useEffect(() => { if (hydrated && innerWidth < 900) setSidebar(false) }, [hydrated]) // eslint-disable-line
 
   const artifact = panel?.kind === 'artifact'
     ? chats.flatMap((c) => c.messages).find((m) => m.id === panel.messageId)?.artifacts?.find((a) => a.id === panel.artifactId)

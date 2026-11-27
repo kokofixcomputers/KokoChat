@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useContext, useMemo, useState } from 'react'
+import { ReadOnlyView, webUrl } from '../lib/readOnly'
 import { Download, X, Eye, Code2, ExternalLink, FileImage, RotateCw } from 'lucide-react'
 import { useStore } from '../store'
 import type { Artifact } from '../types'
@@ -24,6 +25,7 @@ const ext = (a: Artifact) => ({ html: 'html', chart: 'json', svg: 'svg', markdow
 
 export function ArtifactPanel({ artifact }: { artifact: Artifact }) {
   const setPanel = useStore((s) => s.setPanel)
+  const readOnly = useContext(ReadOnlyView)
   const [tab, setTab] = useState<'preview' | 'code'>('preview')
   const live = useStore((s) => Object.keys(s.streaming).length > 0)
   const dark = useIsDark()
@@ -48,9 +50,10 @@ export function ArtifactPanel({ artifact }: { artifact: Artifact }) {
         {artifact.kind !== 'image' && artifact.kind !== 'video' && <CopyButton text={artifact.content} className="hidden sm:flex" />}
         <IconButton title="Download" className="h-8 w-8" onClick={async () => { if (artifact.kind === 'slides') { try { await downloadPptx(artifact.content, artifact.title) } catch (e: any) { toast.error(e.message) } return } if (artifact.kind === 'video') { const b = await loadVideo(artifact.id); if (!b) return toast.error('This video is not stored on this device.'); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `${artifact.title.replace(/\W+/g, '-').toLowerCase()}.mp4`; a.click(); setTimeout(() => URL.revokeObjectURL(u), 4000); return } if (artifact.kind === 'diagram') return saveDiagram(false); const n = `${artifact.title.replace(/\W+/g, '-').toLowerCase()}.${ext(artifact)}`; artifact.kind === 'image' ? downloadDataUrl(n, artifact.content) : download(n, artifact.content) }}><Download size={16} /></IconButton>
         {artifact.kind === 'diagram' && <IconButton title="Download PNG" className="h-8 w-8" onClick={() => saveDiagram(true)}><FileImage size={16} /></IconButton>}
-        {artifact.kind === 'app' && <IconButton title="Open live app" className="h-8 w-8" onClick={() => window.open(artifact.content, '_blank')}><ExternalLink size={16} /></IconButton>}
-        {chatId && (artifact.kind === 'html' || artifact.kind === 'diagram' || artifact.kind === 'chart') && <PublishMenu item={{ ref: artifactRef(chatId, artifact.id), title: artifact.title, kind: artifact.kind, content: artifact.content, adopts: (p) => ownsOldPage(useStore.getState().chats, chatId, artifact.id, p) }} />}
-        {artifact.kind === 'html' && (
+        {artifact.kind === 'app' && <IconButton title="Open live app" className="h-8 w-8" onClick={() => window.open(webUrl(artifact.content), '_blank', 'noopener')}><ExternalLink size={16} /></IconButton>}
+        {!readOnly && chatId && (artifact.kind === 'html' || artifact.kind === 'diagram' || artifact.kind === 'chart') && <PublishMenu item={{ ref: artifactRef(chatId, artifact.id), title: artifact.title, kind: artifact.kind, content: artifact.content, adopts: (p) => ownsOldPage(useStore.getState().chats, chatId, artifact.id, p) }} />}
+        {/* a blob: tab runs with this site's own access, so never for someone else's page */}
+        {!readOnly && artifact.kind === 'html' && (
           <IconButton title="Open in new tab" className="h-8 w-8" onClick={() => window.open(URL.createObjectURL(new Blob([artifact.content], { type: 'text/html' })), '_blank')}><ExternalLink size={16} /></IconButton>
         )}
         <IconButton title="Close" className="h-8 w-8" onClick={() => setPanel(null)}><X size={17} /></IconButton>
@@ -122,23 +125,11 @@ export function SourcesPanel({ messageId }: { messageId: string }) {
   )
 }
 
-/** Preview-only rendering of an artifact (used by the public shared-chat page). */
-export function ArtifactPreview({ artifact }: { artifact: Pick<Artifact, 'kind' | 'title' | 'content' | 'language'> }) {
-  const a = artifact as Artifact
-  const dark = useIsDark()
-  void dark
-  if (a.kind === 'image') return <div className="grid min-h-full place-items-center bg-surface-2/40 p-4"><img src={a.content} alt={a.title} className="max-h-[540px] max-w-full rounded-2xl" /></div>
-  if (a.kind === 'html' || a.kind === 'svg') return <iframe title={a.title} sandbox="allow-scripts allow-forms allow-modals allow-popups" srcDoc={frame(a)} className="h-full w-full bg-white" />
-  if (a.kind === 'app') return <AppFrame url={a.content} />
-  if (a.kind === 'slides') return <SlidesViewer content={a.content} title={a.title} />
-  if (a.kind === 'diagram') return <DiagramViewer content={a.content} />
-  if (a.kind === 'chart') return <ChartView content={a.content} />
-  if (a.kind === 'markdown') return <div className="p-6"><Markdown text={a.content} /></div>
-  return <div className="p-3"><Markdown text={`\`\`\`\`${a.language ?? ''}\n${a.content}\n\`\`\`\``} /></div>
-}
-
-export function AppFrame({ url }: { url: string }) {
+export function AppFrame({ url: given }: { url: string }) {
   const [n, setN] = useState(0)
+  // the frame may use its own origin, so it must be a web address and never this site's
+  const url = webUrl(given) && new URL(given).origin !== location.origin ? given : ''
+  if (!url) return <div className="p-6 text-sm text-muted">This app's address can't be shown.</div>
   return (
     <div className="flex h-full min-h-[320px] flex-col">
       <div className="flex items-center gap-2 border-b border-line bg-surface-2/40 px-3 py-1.5">

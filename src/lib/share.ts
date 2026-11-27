@@ -2,6 +2,9 @@ import type { Artifact, Chat, Message, Source } from '../types'
 import { useStore, DEFAULT_SYNC } from '../store'
 import { recompressImage } from './images'
 import { uid } from './utils'
+import { shareTool } from './shareTools'
+import { webUrl } from './readOnly'
+import { isTauri } from './tauri'
 
 /* ---------------------------- shared format ---------------------------- */
 export interface ShareOptions {
@@ -11,6 +14,7 @@ export interface ShareOptions {
   attachedFiles: boolean
   sources: boolean
   reasoning: boolean
+  toolCalls: boolean
   modelNames: boolean
   instructions: boolean
   /** share only up to (and including the reply to) this user message; undefined = everything */
@@ -20,10 +24,14 @@ export interface ShareOptions {
 
 export const DEFAULT_SHARE_OPTIONS: ShareOptions = {
   artifacts: true, generatedImages: true, attachedImages: true, attachedFiles: true, sources: true,
-  reasoning: false, modelNames: true, instructions: false, expiresInDays: 0,
+  reasoning: false, toolCalls: true, modelNames: true, instructions: false, expiresInDays: 0,
 }
 
-export type SBlock = { type: 'text'; text: string } | { type: 'reasoning'; text: string } | { type: 'artifact'; id: string }
+export type SBlock =
+  | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string; startedAt?: number; endedAt?: number }
+  | { type: 'artifact'; id: string }
+  | ({ type: 'tool'; artifactId?: string } & NonNullable<ReturnType<typeof shareTool>>)
 export interface SMessage {
   role: 'user' | 'assistant'
   createdAt: number
@@ -34,20 +42,29 @@ export interface SMessage {
   artifacts?: Pick<Artifact, 'id' | 'title' | 'kind' | 'language' | 'content'>[]
   sources?: Source[]
   model?: string
+  /** the provider's kind, for the model's icon */
+  preset?: string
+  durationMs?: number
+  stopped?: boolean
+  mode?: 'research'
+  cmp?: Message['cmp']
+  cmd?: Message['cmd']
+  reports?: Message['reports']
 }
 export interface SharedChat { v: 1; title: string; createdAt: number; model?: string; instructions?: string; messages: SMessage[] }
 
 /** Counts of what a chat contains, for the share dialog. */
 export function inventory(chat: Chat, upTo?: string) {
   const msgs = cut(chat.messages, upTo)
-  let artifacts = 0, generatedImages = 0, attachedImages = 0, attachedFiles = 0, sources = 0, reasoning = 0
+  let artifacts = 0, generatedImages = 0, attachedImages = 0, attachedFiles = 0, sources = 0, reasoning = 0, toolCalls = 0
   for (const m of msgs) {
+    toolCalls += (m.blocks ?? []).filter((b) => b.type === 'tool' && !b.artifactId && !b.name.startsWith('memory_')).length
     for (const a of m.artifacts ?? []) a.kind === 'image' ? generatedImages++ : artifacts++
     for (const a of m.attachments ?? []) a.kind === 'text' ? attachedFiles++ : attachedImages++
     sources += m.sources?.length ?? 0
     reasoning += (m.blocks ?? []).filter((b) => b.type === 'reasoning' && b.text.trim()).length
   }
-  return { artifacts, generatedImages, attachedImages, attachedFiles, sources, reasoning, messages: msgs.length }
+  return { artifacts, generatedImages, attachedImages, attachedFiles, sources, reasoning, toolCalls, messages: msgs.length }
 }
 
 function cut(messages: Message[], upTo?: string) {
@@ -59,15 +76,18 @@ function cut(messages: Message[], upTo?: string) {
   return messages.slice(0, next && next.role === 'assistant' && messages[i].role === 'user' ? i + 2 : i + 1)
 }
 
+const presetOf = (m: Message) => useStore.getState().providers.find((p) => p.id === m.cmp?.providerId || p.models.some((x) => x.id === m.model))?.preset
+
 export async function buildShare(chat: Chat, o: ShareOptions, modelOfChat?: string): Promise<SharedChat> {
   const out: SMessage[] = []
   for (const m of cut(chat.messages, o.upToMessageId)) {
     if (m.status === 'streaming') continue
     if (m.role === 'user') {
+      if (m.reports?.length && !o.toolCalls) continue // sub-agents' reports are tool output
       const attachments = (m.attachments ?? [])
         .filter((a) => (a.kind === 'text' ? o.attachedFiles : o.attachedImages))
         .map((a) => (a.kind === 'text' ? { name: a.name, kind: 'text' as const, text: a.text } : { name: a.name, kind: 'image' as const, dataUrl: a.dataUrl }))
-      out.push({ role: 'user', createdAt: m.createdAt, text: m.text, ...(m.quotes?.length ? { quotes: m.quotes } : {}), ...(attachments.length ? { attachments } : {}) })
+      out.push({ role: 'user', createdAt: m.createdAt, text: m.text, ...(m.quotes?.length ? { quotes: m.quotes } : {}), ...(attachments.length ? { attachments } : {}), ...(m.cmd && !m.edited ? { cmd: m.cmd } : {}), ...(m.reports?.length ? { reports: m.reports } : {}) })
       continue
     }
     const artifacts: SMessage['artifacts'] = []
@@ -81,13 +101,20 @@ export async function buildShare(chat: Chat, o: ShareOptions, modelOfChat?: stri
     const blocks: SBlock[] = []
     for (const b of m.blocks ?? []) {
       if (b.type === 'text' && b.text.trim()) blocks.push({ type: 'text', text: b.text })
-      else if (b.type === 'reasoning' && o.reasoning && b.text.trim()) blocks.push({ type: 'reasoning', text: b.text })
-      else if (b.type === 'tool' && b.artifactId && have.has(b.artifactId)) blocks.push({ type: 'artifact', id: b.artifactId })
+      else if (b.type === 'reasoning' && o.reasoning && b.text.trim()) blocks.push({ type: 'reasoning', text: b.text, startedAt: b.startedAt, endedAt: b.endedAt })
+      else if (b.type === 'tool') {
+        const artifactId = b.artifactId && have.has(b.artifactId) ? b.artifactId : undefined
+        const tool = o.toolCalls ? shareTool(b, o, !!artifactId) : null
+        if (tool) blocks.push({ type: 'tool', ...tool, ...(artifactId ? { artifactId } : {}) })
+        else if (artifactId) blocks.push({ type: 'artifact', id: artifactId })
+      }
     }
-    for (const a of artifacts) if (!blocks.some((b) => b.type === 'artifact' && b.id === a.id)) blocks.push({ type: 'artifact', id: a.id })
+    for (const a of artifacts) if (!blocks.some((b) => (b.type === 'artifact' && b.id === a.id) || (b.type === 'tool' && b.artifactId === a.id))) blocks.push({ type: 'artifact', id: a.id })
     out.push({
       role: 'assistant', createdAt: m.createdAt, blocks, ...(artifacts.length ? { artifacts } : {}),
-      ...(o.sources && m.sources?.length ? { sources: m.sources } : {}), ...(o.modelNames && m.model ? { model: m.model } : {}),
+      ...(o.sources && m.sources?.length ? { sources: m.sources } : {}), ...(o.modelNames && m.model ? { model: m.model, preset: presetOf(m) } : {}),
+      ...(m.durationMs ? { durationMs: m.durationMs } : {}), ...(m.status === 'stopped' ? { stopped: true } : {}), ...(m.mode ? { mode: m.mode } : {}),
+      ...(m.cmp ? { cmp: { group: m.cmp.group, lane: m.cmp.lane, picked: m.cmp.picked } } : {}),
     })
   }
   return {
@@ -122,11 +149,19 @@ export async function revokeShare(chatId: string, id: string) {
   useStore.getState().removeShare(chatId, id)
 }
 
+const WEB_APP = 'https://kokochat.pages.dev'
+
+/** The website that shows shared chats. The desktop apps run from addresses (tauri://, a local server) nobody else can open. */
+function webOrigin() {
+  const hosted = /^https?:$/.test(location.protocol) && !isTauri() && !(window as any).koko && !/(^|\.)localhost$|^127\./.test(location.hostname)
+  return hosted ? location.origin : ((import.meta.env.VITE_APP_URL as string | undefined) || WEB_APP).replace(/\/+$/, '')
+}
+
 /** Link to the public viewer. Includes the worker URL only if the app does not already know it. */
 export function shareLink(id: string) {
   const { url } = syncCfg()
   const w = url && url !== DEFAULT_SYNC.url ? `?w=${encodeURIComponent(url)}` : ''
-  return `${location.origin}/s/${id}${w}`
+  return `${webOrigin()}/s/${id}${w}`
 }
 
 export async function fetchShared(id: string, worker?: string): Promise<{ title: string; created: number; expires: number | null; chat: SharedChat }> {
@@ -141,17 +176,23 @@ export async function fetchShared(id: string, worker?: string): Promise<{ title:
 /** Turn a shared chat into a normal local chat. */
 export function sharedToChat(s: SharedChat): Chat {
   const now = Date.now()
+  const sources = (list?: Source[]) => list?.map((x) => ({ ...x, url: webUrl(x.url) }))
   const messages: Message[] = s.messages.map((m, i) => {
-    const base = { id: uid(), createdAt: now + i, status: 'done' as const }
+    const base = { id: uid(), createdAt: now + i, status: m.stopped ? ('stopped' as const) : ('done' as const) }
     if (m.role === 'user')
-      return { ...base, role: 'user' as const, text: m.text, ...(m.quotes ? { quotes: m.quotes } : {}), attachments: m.attachments?.map((a) => ({ id: uid(), name: a.name, mime: a.kind === 'text' ? 'text/plain' : 'image/png', dataUrl: a.dataUrl ?? '', ...(a.kind === 'text' ? { kind: 'text' as const, text: a.text } : {}) })) }
-    const arts = (m.artifacts ?? []).map((a) => ({ ...a, version: 1 }))
+      return { ...base, role: 'user' as const, text: m.text, cmd: m.cmd, reports: m.reports, ...(m.quotes ? { quotes: m.quotes } : {}), attachments: m.attachments?.map((a) => ({ id: uid(), name: a.name, mime: a.kind === 'text' ? 'text/plain' : 'image/png', dataUrl: a.dataUrl ?? '', ...(a.kind === 'text' ? { kind: 'text' as const, text: a.text } : {}) })) }
+    const arts = (m.artifacts ?? []).map((a) => ({ ...a, version: 1, content: a.kind === 'app' ? webUrl(a.content) : a.content }))
     return {
-      ...base, role: 'assistant' as const, model: m.model, sources: m.sources,
+      ...base, role: 'assistant' as const, model: m.model, sources: sources(m.sources), durationMs: m.durationMs, mode: m.mode, cmp: m.cmp,
       artifacts: arts,
-      blocks: (m.blocks ?? []).map((b) => (b.type === 'artifact'
-        ? { type: 'tool' as const, id: uid(), callId: uid(), name: arts.find((a) => a.id === b.id)?.kind === 'image' ? 'generate_image' : 'create_artifact', args: '{}', status: 'done' as const, artifactId: b.id, startedAt: now }
-        : b.type === 'reasoning' ? { type: 'reasoning' as const, id: uid(), text: b.text, startedAt: now, endedAt: now } : { type: 'text' as const, id: uid(), text: b.text })),
+      blocks: (m.blocks ?? []).map((b) => {
+        if (b.type === 'text') return { type: 'text' as const, id: uid(), text: b.text }
+        if (b.type === 'reasoning') return { type: 'reasoning' as const, id: uid(), text: b.text, startedAt: b.startedAt ?? now, endedAt: b.endedAt ?? b.startedAt ?? now }
+        // links made before tool calls were shared only say where each artifact goes
+        if (b.type === 'artifact') return { type: 'tool' as const, id: uid(), callId: uid(), name: arts.find((a) => a.id === b.id)?.kind === 'image' ? 'generate_image' : 'create_artifact', args: '{}', status: 'done' as const, artifactId: b.id, startedAt: now }
+        const meta = b.meta && { ...b.meta, ...('url' in b.meta ? { url: webUrl(b.meta.url) } : {}) }
+        return { ...b, id: uid(), callId: uid(), status: b.status === 'done' ? ('done' as const) : ('error' as const), args: String(b.args ?? '{}'), meta, sources: sources(b.sources) }
+      }),
     }
   })
   return { id: uid(), title: s.title, createdAt: now, updatedAt: now, messages, titled: true, system: s.instructions }
@@ -168,6 +209,7 @@ export function estimateShareSize(chat: Chat, o: ShareOptions): number {
       for (const b of m.blocks ?? []) {
         if (b.type === 'text') n += b.text.length
         else if (b.type === 'reasoning' && o.reasoning) n += b.text.length
+        else if (b.type === 'tool' && o.toolCalls) { const t = shareTool(b, o, !!b.artifactId); n += t ? JSON.stringify(t).length : 0 }
       }
       for (const a of m.artifacts ?? []) n += a.kind === 'image' ? (o.generatedImages ? a.content.length : 0) : o.artifacts ? a.content.length : 0
       if (o.sources) n += (m.sources ?? []).reduce((x, s) => x + s.title.length + s.url.length + s.snippet.length + 40, 0)

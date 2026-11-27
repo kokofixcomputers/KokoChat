@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useContext, useMemo, useState } from 'react'
+import { ReadOnlyView } from '../lib/readOnly'
 import { Pencil, Play, Plus, Rocket, Sparkles, Trash2, Zap } from 'lucide-react'
 import type { Block, ProjectAction } from '../types'
 import { useStore } from '../store'
@@ -10,6 +11,7 @@ type Tool = Extract<Block, { type: 'tool' }>
 export function ActionCard({ block }: { block: Tool }) {
   const meta = (block.meta as { action?: { id: string; name: string; command: string } } | undefined)?.action
   const act = useStore((s) => s.actions.find((a) => a.id === meta?.id))
+  const readOnly = useContext(ReadOnlyView)
   if (block.status === 'running') return <span className="shimmer w-fit text-xs font-medium text-muted">Adding an action…</span>
   if (!meta || block.status === 'error') return null
   return (
@@ -20,7 +22,7 @@ export function ActionCard({ block }: { block: Tool }) {
           <span className="flex items-center gap-2 text-[13.5px] font-medium"><span className="truncate">{act?.name ?? meta.name}</span><span className="shrink-0 text-xs font-normal text-faint">Action</span></span>
           <code className="block truncate font-mono text-[12px] text-muted" title={act?.command ?? meta.command}>{act?.command ?? meta.command}</code>
         </span>
-        {act ? <button onClick={() => runAction(act)} className="flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-fg px-3.5 text-[13px] font-medium text-bg transition active:scale-95"><Play size={12} fill="currentColor" />Run</button> : <span className="text-xs text-faint">Removed</span>}
+        {act ? <button onClick={() => runAction(act)} className="flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-fg px-3.5 text-[13px] font-medium text-bg transition active:scale-95"><Play size={12} fill="currentColor" />Run</button> : !readOnly && <span className="text-xs text-faint">Removed</span>}
       </div>
     </div>
   )

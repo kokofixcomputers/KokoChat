@@ -1,3 +1,5 @@
+import { useContext } from 'react'
+import { ReadOnlyView } from '../lib/readOnly'
 import { useState } from 'react'
 import { Bot, Check, CircleAlert, Loader2, PanelRight, ShieldQuestion, Square, Users } from 'lucide-react'
 import type { Block, Message } from '../types'
@@ -40,6 +42,7 @@ const STATUS = {
 } as const
 
 export function AgentCard({ block }: { block: Tool }) {
+  const readOnly = useContext(ReadOnlyView)
   const meta = (block.meta ?? {}) as { agentId?: string; agentName?: string }
   const id = meta.agentId
   const child = useStore((s) => s.chats.find((c) => c.id === id))
@@ -59,7 +62,7 @@ export function AgentCard({ block }: { block: Tool }) {
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">{pending ? <ShieldQuestion size={15} /> : running || starting ? <Loader2 size={15} className="spin" /> : <Bot size={15} />}</span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2"><span className="truncate font-medium">{name}</span><span className="shrink-0 text-xs text-faint">Sub-agent</span></span>
-          <span className="block truncate text-xs text-muted">{!child ? (starting ? 'Starting…' : 'No longer available') : pending ? 'Waiting for your approval' : running ? agentActivity(last?.blocks) : rep!.status === 'done' ? 'Finished' : rep!.status === 'failed' ? 'Ran into a problem' : 'Stopped'}</span>
+          <span className="block truncate text-xs text-muted">{!child ? (starting ? 'Starting…' : readOnly ? 'Ran in the background' : 'No longer available') : pending ? 'Waiting for your approval' : running ? agentActivity(last?.blocks) : rep!.status === 'done' ? 'Finished' : rep!.status === 'failed' ? 'Ran into a problem' : 'Stopped'}</span>
         </span>
         {status && <span className={cn('hidden shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium sm:inline', STATUS[status].cls)}>{STATUS[status].label}</span>}
         {id && child && <button title="Stop this sub-agent" onClick={() => stop(id)} className={cn('grid h-7 w-7 shrink-0 place-items-center rounded-full text-muted transition hover:bg-danger/10 hover:text-danger', !running && 'hidden')}><Square size={12} fill="currentColor" /></button>}

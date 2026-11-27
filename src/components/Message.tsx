@@ -54,7 +54,7 @@ function Editor({ value, onChange, onCancel, onSave, children, className }: {
 const primary = 'h-8 rounded-full bg-fg px-3.5 text-[13px] font-medium text-bg disabled:opacity-40'
 const secondary = 'h-8 rounded-full bg-fg/8 px-3.5 text-[13px] font-medium hover:bg-fg/12 disabled:opacity-40'
 
-export const MessageView = memo(function MessageView({ chatId, m, last, latestUser, readOnly }: { chatId: string; m: Msg; last: boolean; latestUser: boolean; readOnly?: boolean }) {
+export const MessageView = memo(function MessageView({ chatId, m, last, latestUser, readOnly, sharedPreset }: { chatId: string; m: Msg; last: boolean; latestUser: boolean; readOnly?: boolean; sharedPreset?: string }) {
   const setPanel = useStore((s) => s.setPanel)
   const regenerate = useStore((s) => s.regenerate)
   const panel = useStore((s) => s.panel)
@@ -68,6 +68,7 @@ export const MessageView = memo(function MessageView({ chatId, m, last, latestUs
   const compacting = useStore((s) => !!s.compacting[chatId])
   const prevUserText = useStore((s) => { const msgs = s.chats.find((c) => c.id === chatId)?.messages ?? []; const i = msgs.findIndex((x) => x.id === m.id); for (let k = i - 1; k >= 0; k--) if (msgs[k].role === 'user') return msgs[k].text ?? ''; return '' })
   const prov = useStore((s) => s.providers.find((p) => p.models.some((x) => x.id === m.model)))
+  const modelLabel = m.model && <span className="ml-2 flex items-center gap-1.5 text-xs text-faint"><ModelIcon model={m.model} preset={prov?.preset ?? sharedPreset ?? 'custom'} name={prov?.name ?? ''} size={16} />{m.model}{m.durationMs ? ` · ${(m.durationMs / 1000).toFixed(m.durationMs < 10000 ? 1 : 0)}s` : ''}{m.edited ? ' · edited' : ''}</span>
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [copied, setCopied] = useState(false)
@@ -261,11 +262,12 @@ export const MessageView = memo(function MessageView({ chatId, m, last, latestUs
           <RegenerateMenu chatId={chatId} m={m} prompt={prevUserText} />
           <IconButton className="h-7 w-7" title="Fork chat from here" onClick={fork}><GitFork size={14} /></IconButton>
           <IconButton className="h-7 w-7 hover:text-danger" title="Delete message" onClick={remove}><Trash2 size={14} /></IconButton>
-          {m.model && <span className="ml-2 flex items-center gap-1.5 text-xs text-faint"><ModelIcon model={m.model} preset={prov?.preset ?? 'custom'} name={prov?.name ?? ''} size={16} />{m.model}{m.durationMs ? ` · ${(m.durationMs / 1000).toFixed(m.durationMs < 10000 ? 1 : 0)}s` : ''}{m.edited ? ' · edited' : ''}</span>}
+          {modelLabel}
           {showStats && m.stats && <ReplyStatsChip stats={m.stats} durationMs={m.durationMs} model={m.model} />}
           <PluginSlot name="message.footer" data={pluginMsg} className="ml-2 flex items-center gap-2 text-xs text-faint" />
         </div>
       )}
+      {readOnly && (allText || m.model) && <div className="-ml-2 flex items-center">{allText && <CopyButton text={allText} />}{modelLabel}</div>}
       {streaming && !readOnly && (
         <div className="-ml-2 flex items-center">
           <IconButton className="h-7 w-7 shrink-0 hover:text-danger" title="Delete message" onClick={remove}><Trash2 size={14} /></IconButton>

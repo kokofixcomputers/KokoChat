@@ -95,10 +95,11 @@ export function ShareDialog() {
               <Row on={o.attachedFiles} onChange={(b) => set({ attachedFiles: b })} label="Files you attached" hint="Text and code files" count={inv.attachedFiles} disabled={!inv.attachedFiles} />
               <Row on={o.sources} onChange={(b) => set({ sources: b })} label="Web sources" hint="Citations and the source list" count={inv.sources} disabled={!inv.sources} />
               <Row on={o.reasoning} onChange={(b) => set({ reasoning: b })} label="AI reasoning" hint="The collapsible “thought” sections" count={inv.reasoning} disabled={!inv.reasoning} />
+              <Row on={o.toolCalls} onChange={(b) => set({ toolCalls: b })} label="Tool calls" hint="The activity cards, with what they show: commands, output, diffs, file paths" count={inv.toolCalls} disabled={!inv.toolCalls} />
               <Row on={o.modelNames} onChange={(b) => set({ modelNames: b })} label="Model names" />
               <Row on={o.instructions} onChange={(b) => set({ instructions: b })} label="Chat instructions" hint="Your custom instructions for this chat" disabled={!chat.system?.trim()} />
             </div>
-            <p className="mt-1 px-1 text-xs text-faint">Tool calls, tool results and your API keys are never shared.</p>
+            <p className="mt-1 px-1 text-xs text-faint">Only what the chat shows is shared. Memories and your API keys are never included. Check tool output for private details.</p>
 
             <div className="mt-4 flex items-center justify-between gap-3">
               <span className="text-sm font-medium">Link expires</span>
