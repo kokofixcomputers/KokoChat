@@ -10,6 +10,8 @@ export interface Preset {
   apiMode: 'responses' | 'chat' | 'anthropic'
   keyOptional?: boolean
   hint?: string
+  /** where to create an API key; for local servers, where to get the app instead */
+  keyUrl?: string
   color: string
   /** asks for a Cloudflare account id (the base URL is built from it) */
   account?: boolean
@@ -22,21 +24,21 @@ const openaiChatOnly = (id: string) =>
   !/(embedding|whisper|tts|dall-e|moderation|transcribe|realtime|audio|image|search-preview|instruct|davinci|babbage)/.test(id)
 
 export const PRESETS: Preset[] = [
-  { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiMode: 'responses', color: '#10a37f', filter: openaiChatOnly, hint: 'Uses the Responses API' },
-  { id: 'anthropic', name: 'Anthropic', baseUrl: 'https://api.anthropic.com/v1', apiMode: 'anthropic', color: '#d97757', hint: 'Claude models (Messages API)' },
-  { id: '1minrelay', name: '1minRelay v4', baseUrl: 'https://v4.kokodev.cc/v1', apiMode: 'responses', color: '#7c3aed', hint: 'OpenAI-compatible relay' },
-  { id: 'openrouter', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', apiMode: 'responses', color: '#6366f1' },
-  { id: 'groq', name: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', apiMode: 'responses', color: '#f55036' },
-  { id: 'together', name: 'Together AI', baseUrl: 'https://api.together.xyz/v1', apiMode: 'responses', color: '#0f6fff' },
-  { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', apiMode: 'responses', color: '#4d6bfe' },
-  { id: 'mistral', name: 'Mistral', baseUrl: 'https://api.mistral.ai/v1', apiMode: 'responses', color: '#fa520f' },
-  { id: 'xai', name: 'xAI', baseUrl: 'https://api.x.ai/v1', apiMode: 'responses', color: '#111827' },
-  { id: 'gemini', name: 'Google Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', apiMode: 'chat', color: '#3b82f6', hint: 'Get a key at aistudio.google.com/apikey', filter: (id) => /^(gemini|gemma)/.test(id) && !/(embedding|tts|image|live|aqa|imagen|veo|robotics|transcribe|native-audio)/.test(id) },
-  { id: 'qwen', name: 'Alibaba Qwen', baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', apiMode: 'chat', color: '#615ced', hint: 'DashScope (international)' },
-  { id: 'zai', name: 'Z.ai (GLM)', baseUrl: 'https://api.z.ai/api/paas/v4', apiMode: 'responses', color: '#111827' },
-  { id: 'ollama', name: 'Ollama', baseUrl: 'http://localhost:11434/v1', apiMode: 'responses', keyOptional: true, color: '#78716c', hint: 'Local — no key needed' },
-  { id: 'lmstudio', name: 'LM Studio', baseUrl: 'http://localhost:1234/v1', apiMode: 'responses', keyOptional: true, color: '#8b5cf6', hint: 'Local — no key needed' },
-  { id: 'cloudflare', name: 'Cloudflare Workers AI', baseUrl: '', apiMode: 'chat', account: true, color: '#f6821f', hint: 'Needs your account ID and an API token' },
+  { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiMode: 'responses', keyUrl: 'https://platform.openai.com/api-keys', color: '#10a37f', filter: openaiChatOnly, hint: 'Uses the Responses API' },
+  { id: 'anthropic', name: 'Anthropic', baseUrl: 'https://api.anthropic.com/v1', apiMode: 'anthropic', keyUrl: 'https://platform.claude.com/settings/keys', color: '#d97757', hint: 'Claude models (Messages API)' },
+  { id: '1minrelay', name: '1minRelay v4', baseUrl: 'https://v4.kokodev.cc/v1', apiMode: 'responses', keyUrl: 'https://v4.kokodev.cc', color: '#7c3aed', hint: 'OpenAI-compatible relay' },
+  { id: 'openrouter', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', apiMode: 'responses', keyUrl: 'https://openrouter.ai/settings/keys', color: '#6366f1' },
+  { id: 'groq', name: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', apiMode: 'responses', keyUrl: 'https://console.groq.com/keys', color: '#f55036' },
+  { id: 'together', name: 'Together AI', baseUrl: 'https://api.together.xyz/v1', apiMode: 'responses', keyUrl: 'https://api.together.ai/settings/api-keys', color: '#0f6fff' },
+  { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', apiMode: 'responses', keyUrl: 'https://platform.deepseek.com/api_keys', color: '#4d6bfe' },
+  { id: 'mistral', name: 'Mistral', baseUrl: 'https://api.mistral.ai/v1', apiMode: 'responses', keyUrl: 'https://console.mistral.ai/api-keys', color: '#fa520f' },
+  { id: 'xai', name: 'xAI', baseUrl: 'https://api.x.ai/v1', apiMode: 'responses', keyUrl: 'https://console.x.ai', color: '#111827' },
+  { id: 'gemini', name: 'Google Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai', apiMode: 'chat', keyUrl: 'https://aistudio.google.com/apikey', color: '#3b82f6', filter: (id) => /^(gemini|gemma)/.test(id) && !/(embedding|tts|image|live|aqa|imagen|veo|robotics|transcribe|native-audio)/.test(id) },
+  { id: 'qwen', name: 'Alibaba Qwen', baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', apiMode: 'chat', keyUrl: 'https://modelstudio.console.alibabacloud.com/?tab=playground#/api-key', color: '#615ced', hint: 'DashScope (international)' },
+  { id: 'zai', name: 'Z.ai (GLM)', baseUrl: 'https://api.z.ai/api/paas/v4', apiMode: 'responses', keyUrl: 'https://z.ai/manage-apikey/apikey-list', color: '#111827' },
+  { id: 'ollama', name: 'Ollama', baseUrl: 'http://localhost:11434/v1', apiMode: 'responses', keyOptional: true, keyUrl: 'https://ollama.com/download', color: '#78716c', hint: 'Local — no key needed' },
+  { id: 'lmstudio', name: 'LM Studio', baseUrl: 'http://localhost:1234/v1', apiMode: 'responses', keyOptional: true, keyUrl: 'https://lmstudio.ai/download', color: '#8b5cf6', hint: 'Local — no key needed' },
+  { id: 'cloudflare', name: 'Cloudflare Workers AI', baseUrl: '', apiMode: 'chat', account: true, keyUrl: 'https://dash.cloudflare.com/profile/api-tokens', color: '#f6821f', hint: 'Needs your account ID and an API token' },
   { id: 'custom', name: 'Custom provider', baseUrl: '', apiMode: 'responses', keyOptional: true, color: '#0ea5e9', hint: 'Any endpoint: pick its API shape' },
 ]
 

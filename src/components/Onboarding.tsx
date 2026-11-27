@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ArrowRight, Check, CircleAlert, Cloud, Globe, ImageIcon, Loader2, MessageCircle, Mic, Shapes, X, Workflow } from 'lucide-react'
 import { useStore } from '../store'
 import { OneMinSignIn } from './OneMinSignIn'
+import { KeyLink } from './KeyLink'
 import { PRESETS, fetchModels, makeProvider, presetOf } from '../lib/providers'
 import type { ModelInfo, Provider } from '../types'
 import { ProviderDot } from './TopBar'
@@ -166,6 +167,7 @@ function ProviderStep({ onNext, onBack, onSkip }: { onNext: () => void; onBack: 
             placeholder={pr.keyOptional ? 'API key (optional)' : `${pr.name} API key`} onKeyDown={(e) => e.key === 'Enter' && !busy && connect()}
             className={cn(field, 'font-mono')} autoFocus
           />
+          <KeyLink preset={pr.id} className="-mt-1" />
           {pr.hint && <div className="-mt-1 text-xs text-faint">{pr.hint}</div>}
           {err && <div className="flex items-start gap-2 rounded-xl bg-danger/10 px-3 py-2 text-xs text-danger"><CircleAlert size={14} className="mt-px shrink-0" />{err}</div>}
           <button disabled={busy || (!pr.keyOptional && !key.trim()) || (needsBase && !base.trim())} onClick={() => connect()} className="flex h-11 items-center justify-center gap-2 rounded-full bg-fg text-sm font-medium text-bg transition active:scale-[0.98] disabled:opacity-40">

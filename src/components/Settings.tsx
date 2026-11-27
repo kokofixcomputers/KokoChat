@@ -4,6 +4,7 @@ import { askConfirm } from '../lib/confirm'
 import { del as idbDel } from 'idb-keyval'
 import { Check, ChevronDown, Eye, EyeOff, KeyRound, Loader2, Monitor, Moon, Plug, Plus, RefreshCw, Sun, Trash2, X, Wrench, SlidersHorizontal, CircleAlert, Globe, Server, ShieldCheck, Mic, Volume2, Square, ImageIcon, Cloud, Terminal, Puzzle, BarChart3, BookText, Video, Code2 } from 'lucide-react'
 import { useStore } from '../store'
+import { KeyLink } from './KeyLink'
 import { PRESETS, cfBase, fetchProviderModels, makeProvider, presetOf } from '../lib/providers'
 import type { McpServer, Provider } from '../types'
 import { listMcpTools } from '../lib/mcp'
@@ -84,6 +85,7 @@ function ProviderCard({ p, open, toggle }: { p: Provider; open: boolean; toggle:
           <div className="text-xs font-medium text-muted">API key{preset.keyOptional && ' (optional)'}
             <div className="mt-1"><SecretInput value={p.apiKey} onChange={(v) => updateProvider(p.id, { apiKey: v })} placeholder={p.preset === 'openai' ? 'sk-...' : 'API key'} /></div>
           </div>
+          <KeyLink preset={p.preset} className="-mt-1.5" />
           {preset.account && (
             <label className="text-xs font-medium text-muted">Account ID
               <input value={p.accountId ?? ''} onChange={(e) => { const id = e.target.value.trim(); updateProvider(p.id, { accountId: id, baseUrl: cfBase(id) }) }} placeholder="32-character account ID" spellCheck={false} className={cn(field, 'mt-1 font-mono')} />
