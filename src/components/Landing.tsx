@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { get as idbGet } from 'idb-keyval'
 import { ArrowRight, ArrowUpRight, AudioLines, BarChart3, Blocks, Brain, Check, Cloud, Code2, Columns2, Download, FileSearch, Globe, ImageIcon, KeyRound, Link2, Lock, MessageCircle, Minus, Plug, Presentation, Telescope, Workflow } from 'lucide-react'
 import { appUrl } from '../lib/site'
+import { CHECKED, RIVALS } from '../lib/comparisons'
 import './landing.css'
 
 const REPO = 'https://github.com/kokofixcomputers/KokoChat'
@@ -30,18 +31,6 @@ const FEATURES: { icon: ReactNode; title: string; text: string; wide?: boolean }
   { icon: <Brain />, title: 'Memory', text: 'It can remember what matters. You can read, edit or clear it.' },
   { icon: <AudioLines />, title: 'Voice', text: 'Dictate your messages and have replies read aloud.' },
   { icon: <Link2 />, title: 'Share links', text: 'Send a chat, chart, diagram or page to anyone with a browser.' },
-]
-
-type Cell = { yes?: boolean; text: string }
-const COMPARE: [string, Cell, Cell][] = [
-  ['Price', { yes: true, text: 'Free' }, { text: 'Free basic plan for personal, non-commercial use. Pro is $49 once, with a year of Pro feature updates' }],
-  ['Where it runs', { yes: true, text: 'In your browser, or as a desktop app' }, { text: 'Desktop app' }],
-  ['On your phone', { yes: true, text: 'Works in the mobile browser' }, { text: 'No mobile app planned' }],
-  ['Sync between devices', { yes: true, text: 'Optional, with optional end-to-end encryption' }, { text: 'Not yet. Data is local; sync is planned' }],
-  ['Bring your own API key', { yes: true, text: 'Yes' }, { yes: true, text: 'Yes' }],
-  ['Web search and artifacts', { yes: true, text: 'Included' }, { yes: true, text: 'Listed under Pro' }],
-  ['MCP tools', { yes: true, text: 'Remote servers' }, { yes: true, text: 'Yes. Unlimited tools listed under Pro' }],
-  ['Use a Claude or Copilot subscription', { text: 'No. Connect with API keys' }, { yes: true, text: 'Yes' }],
 ]
 
 const FAQ = [
@@ -84,6 +73,7 @@ function useSavedData() {
 export function Landing() {
   const [dark, setDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches)
   const [tab, setTab] = useState(0)
+  const [vs, setVs] = useState(0)
   const saved = useSavedData()
   const open = appUrl()
 
@@ -107,6 +97,7 @@ export function Landing() {
   const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
   const cta = (label: string, className = '') => <a href={open} className={`lp-cta group inline-flex items-center gap-2 rounded-full bg-fg font-semibold text-bg ${className}`}>{label}<ArrowRight size={16} className="transition group-hover:translate-x-0.5" /></a>
   const shot = SHOTS[tab]
+  const rival = RIVALS[vs]
 
   return (
     <div className="lp h-full overflow-y-auto overflow-x-hidden bg-bg text-fg">
@@ -199,25 +190,33 @@ export function Landing() {
       </section>
 
       <section id="compare" className="mx-auto max-w-4xl scroll-mt-20 px-4 pt-28">
-        <Reveal className="text-center"><h2 className="lp-display lp-h2">Koko Chat and ChatWise</h2><p className="mx-auto mt-4 max-w-xl text-muted">ChatWise is a polished desktop chat app. Here's where the two differ, including where it does something we don't.</p></Reveal>
-        <Reveal className="mt-10">
+        <Reveal className="text-center"><h2 className="lp-display lp-h2">How Koko Chat compares</h2><p className="mx-auto mt-4 max-w-xl text-muted">Pick an app. Each comparison includes where it's strong, even where it does something we don't.</p></Reveal>
+        <Reveal className="mt-8 flex justify-center">
+          <div role="tablist" aria-label="Compare with" className="glass flex flex-wrap justify-center gap-1 rounded-3xl p-1 sm:rounded-full">
+            {RIVALS.map((r, i) => <button key={r.name} role="tab" aria-selected={i === vs} onClick={() => setVs(i)} className={`whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-medium transition ${i === vs ? 'bg-fg text-bg' : 'text-muted hover:text-fg'}`}>{r.name}</button>)}
+          </div>
+        </Reveal>
+        <Reveal className="mt-6">
+          <div key={rival.name} className="anim-fade-up">
+          <p className="mb-4 text-center text-sm text-muted"><b className="text-fg">{rival.name}:</b> {rival.intro}</p>
           <div className="glass-strong overflow-hidden rounded-[28px]" role="table">
             <div role="row" className="hidden grid-cols-[1fr_1.2fr_1.2fr] gap-4 border-b border-line px-6 py-4 text-sm font-semibold sm:grid">
-              <span role="columnheader" /><span role="columnheader" className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-accent" />Koko Chat</span><span role="columnheader" className="text-muted">ChatWise</span>
+              <span role="columnheader" /><span role="columnheader" className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-accent" />Koko Chat</span><span role="columnheader" className="text-muted">{rival.name}</span>
             </div>
-            {COMPARE.map(([label, ...cells]) => (
+            {rival.rows.map(([label, ...cells]) => (
               <div role="row" key={label} className="grid grid-cols-2 gap-x-4 gap-y-2 border-b border-line px-5 py-4 text-sm last:border-0 sm:grid-cols-[1fr_1.2fr_1.2fr] sm:px-6">
                 <span role="rowheader" className="col-span-2 font-medium sm:col-span-1">{label}</span>
                 {cells.map((c, i) => (
                   <span role="cell" key={i} className={`flex items-start gap-2 ${i ? 'text-muted' : ''}`}>
                     <span className={`mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full ${c.yes ? (i ? 'bg-fg/10 text-muted' : 'bg-accent text-accent-fg') : 'text-faint'}`}>{c.yes ? <Check size={10} strokeWidth={3.5} /> : <Minus size={12} />}</span>
-                    <span><span className="block text-[11px] font-semibold uppercase tracking-wide text-faint sm:hidden">{i ? 'ChatWise' : 'Koko'}</span>{c.text}</span>
+                    <span><span className="block text-[11px] font-semibold uppercase tracking-wide text-faint sm:hidden">{i ? rival.name : 'Koko'}</span>{c.text}</span>
                   </span>
                 ))}
               </div>
             ))}
           </div>
-          <p className="mt-3 text-center text-xs leading-relaxed text-faint">ChatWise details come from its <a className="underline hover:text-fg" href="https://chatwise.app" target="_blank" rel="noreferrer">website</a> and <a className="underline hover:text-fg" href="https://chatwise.app/pricing" target="_blank" rel="noreferrer">pricing page</a>, checked November 27, 2026, and may have changed. ChatWise is a trademark of its owner; Koko Chat is not affiliated with it.</p>
+          <p className="mt-3 text-center text-xs leading-relaxed text-faint">{rival.name} details come from its {rival.sources.map(([label, url], i) => <span key={url}>{i > 0 && (i === rival.sources.length - 1 ? ' and ' : ', ')}<a className="underline hover:text-fg" href={url} target="_blank" rel="noreferrer">{label}</a></span>)}, checked {CHECKED}, and may have changed. Product names belong to their owners; Koko Chat is not affiliated with them.</p>
+          </div>
         </Reveal>
       </section>
 
