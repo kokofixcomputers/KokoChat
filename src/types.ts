@@ -307,7 +307,11 @@ export interface IntegrationsSettings {
   notion: { enabled: boolean; token: string }
 }
 
+/** Optional model settings. A missing value means the model's own default. */
+export interface AdvancedSettings { enabled: boolean; temperature?: number; topP?: number; topK?: number; maxTokens?: number; frequencyPenalty?: number; presencePenalty?: number }
+
 export interface Settings {
+  advanced?: AdvancedSettings
   /** system notifications when the window is not in front */
   notifications: { enabled: boolean; onFinish: boolean; onApproval: boolean; sound: boolean }
   memory: { enabled: boolean; auto: boolean }

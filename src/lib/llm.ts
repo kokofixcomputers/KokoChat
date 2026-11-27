@@ -1,3 +1,5 @@
+import { applyAdvanced } from './advanced'
+import { useStore } from '../store'
 import type { Block, ChatSummary, Effort, McpServer, Message, Provider, Settings } from '../types'
 import { buildMcp } from './mcp'
 import { authHeaders, cleanBase, supportsReasoning, responsesOptions } from './providers'
@@ -56,11 +58,17 @@ async function post(p: Provider, path: string, body: unknown, signal: AbortSigna
       const j = await res.json()
       msg = j?.error?.message ?? j?.message ?? JSON.stringify(j).slice(0, 300)
     } catch { /* ignore */ }
+    // say where to look when the refusal is about one of the optional model settings
+    if ((res.status === 400 || res.status === 422) && /temperature|top_p|top_k|_penalty|max_(output_|completion_)?tokens/i.test(msg) && useStore.getState().settings.advanced?.enabled)
+      msg += ' (Check Settings → General → Advanced model settings: this model may not accept one of your values.)'
     throw Object.assign(new Error(msg), { status: res.status })
   }
   return res
 }
 
+
+/** The optional model settings apply to chat replies; a coding agent keeps the defaults, where a short limit would cut files off. */
+const advance = (o: RunOpts, body: any, format: 'responses' | 'chat' | 'anthropic') => { if (!isCodeChat(o.chatId)) applyAdvanced(body, o.provider, format, o.settings.advanced) }
 
 /** The user clearly asked to actually run/execute something: make the model call a tool instead of describing a result. */
 const RUN_INTENT = /\b(sandbox|vm|virtual machine|shell|bash|terminal|execute|executing|echo|deploy|install (?:the )?(?:package|npm|pip|dependenc)|run (?:a |an |the |this |my |some )?(?:command|script|code|program|test|server))\b/i
@@ -255,6 +263,7 @@ async function runResponses(o: RunOpts) {
     if (tools.length) body.tools = tools.map((t) => ({ type: 'function', ...t, strict: false }))
     const tc = step === 0 ? initialToolChoice(o, tools, 'responses') : undefined
     if (tc) body.tool_choice = tc
+    advance(o, body, 'responses')
     o.meter?.begin(body)
     const res = await post(p, '/responses', body, o.signal)
     const calls: Pending[] = []
@@ -375,6 +384,7 @@ async function runChat(o: RunOpts) {
     const thoughts = p.preset === 'gemini' && geminiThoughtsOk && supportsReasoning(p, o.model)
     // Gemini's compatible endpoint only returns its thinking when asked, wrapped in <thought> tags
     if (thoughts) body.extra_body = { google: { thinking_config: { include_thoughts: true } } }
+    advance(o, body, 'chat')
     let res: Response
     o.meter?.begin(body)
     try { res = await post(p, '/chat/completions', body, o.signal) } catch (e: any) {
@@ -503,6 +513,7 @@ async function runAnthropic(o: RunOpts) {
       const tc = step === 0 ? initialToolChoice(o, tools, 'anthropic') : undefined // forced tools are not allowed together with thinking
       if (tc) body.tool_choice = tc === 'required' ? { type: 'any' } : tc
     }
+    advance(o, body, 'anthropic')
     o.meter?.begin(body)
     const res = await post(p, '/messages', body, o.signal)
 

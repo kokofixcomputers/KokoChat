@@ -5,6 +5,7 @@ import { del as idbDel } from 'idb-keyval'
 import { Check, ChevronDown, Eye, EyeOff, KeyRound, Loader2, Monitor, Moon, Plug, Plus, RefreshCw, Sun, Trash2, X, Wrench, SlidersHorizontal, CircleAlert, Globe, Server, ShieldCheck, Mic, Volume2, Square, ImageIcon, Cloud, Terminal, Puzzle, BarChart3, BookText, Video, Code2 } from 'lucide-react'
 import { useStore } from '../store'
 import { KeyLink } from './KeyLink'
+import { AdvancedSettings } from './AdvancedSettings'
 import { PRESETS, cfBase, fetchProviderModels, makeProvider, presetOf } from '../lib/providers'
 import type { McpServer, Provider } from '../types'
 import { listMcpTools } from '../lib/mcp'
@@ -830,6 +831,7 @@ function General() {
         <div><div className="text-sm font-medium">Reply measurements</div><div className="text-xs text-muted">For power users. Shows time to first token and tokens per second under each new reply; select them for token counts, timings and cost. A ~ marks an estimate.</div></div>
         <Toggle on={!!settings.replyStats} onChange={(b) => setSettings({ replyStats: b })} />
       </section>
+      <AdvancedSettings />
       <label className="text-sm font-medium">System prompt
         <textarea value={settings.systemPrompt} onChange={(e) => setSettings({ systemPrompt: e.target.value })} rows={5} className={cn(field, 'mt-2 h-auto resize-y py-2.5 font-normal leading-relaxed')} /></label>
       <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface/50 p-4">
