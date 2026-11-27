@@ -2,6 +2,7 @@ import type { ModelInfo, Provider } from '../types'
 import { uid } from './utils'
 import { useStore } from '../store'
 import { isDesktop } from './desktop'
+import { capabilities } from './modelBadges'
 
 export interface Preset {
   id: string
@@ -123,7 +124,7 @@ export async function fetchModels(p: Provider): Promise<ModelInfo[]> {
   const raw: any[] = Array.isArray(json) ? json : json.data ?? json.models ?? []
   const preset = PRESETS.find((x) => x.id === p.preset)
   let list: ModelInfo[] = raw
-    .map((m) => ({ id: String(m.id ?? m.name ?? '').replace(/^models\//, ''), created: typeof m.created === 'number' ? m.created : typeof m.created_at === 'string' ? Math.round(Date.parse(m.created_at) / 1000) || undefined : undefined }))
+    .map((m) => ({ ...capabilities(m), id: String(m.id ?? m.name ?? '').replace(/^models\//, ''), created: typeof m.created === 'number' ? m.created : typeof m.created_at === 'string' ? Math.round(Date.parse(m.created_at) / 1000) || undefined : undefined }))
     .filter((m) => m.id)
   if (preset?.filter) list = list.filter((m) => preset.filter!(m.id))
   list.sort((a, b) => (b.created ?? 0) - (a.created ?? 0) || a.id.localeCompare(b.id))

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, Columns2, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { useStore } from '../store'
+import { ModelBadges } from './ModelBadges'
 import type { Message } from '../types'
 import { Popover } from './ui'
 import { ModelIcon } from './ModelIcon'
@@ -39,7 +40,7 @@ export function RegenerateMenu({ chatId, m }: { chatId: string; m: Message; prom
           <div className="max-h-56 overflow-y-auto">
             {list.map(({ p, id }) => (
               <button key={p.id + id} onClick={() => { close(); void regenerate(chatId, m.id, { providerId: p.id, model: id }) }} className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-sm transition hover:bg-fg/5">
-                <ModelIcon model={id} preset={p.preset} name={p.name} size={20} /><span className="min-w-0 flex-1 truncate">{id}</span>
+                <ModelIcon model={id} preset={p.preset} name={p.name} size={20} /><span className="min-w-0 flex-1 truncate">{id}</span><ModelBadges provider={p} id={id} compact />
               </button>
             ))}
             {!list.length && <p className="px-3 py-4 text-center text-xs text-faint">No models</p>}

@@ -4,6 +4,7 @@ import { ArrowUp, Camera, Check, ChevronDown, ImagePlus, Loader2, X } from 'luci
 import { koko } from '../lib/desktop'
 import { cn } from '../lib/utils'
 import { ModelIcon } from './ModelIcon'
+import { ModelBadges } from './ModelBadges'
 
 interface Prov { id: string; name: string; preset: string; models: string[] }
 interface Picked { providerId: string; model: string }
@@ -148,7 +149,7 @@ export function QuickAsk() {
                     <div className="flex items-center gap-2 px-2.5 pb-1 pt-2 text-xs font-medium text-muted"><Dot p={p} />{p.name}</div>
                     {ms.map((m) => (
                       <button key={m} onClick={() => { setPick({ providerId: p.id, model: m }); setMenu(false); setQ(''); setTimeout(() => ta.current?.focus(), 20) }} className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-sm transition hover:bg-fg/5">
-                        <ModelIcon model={m} preset={p.preset} name={p.name} size={20} /><span className="min-w-0 flex-1 truncate">{m}</span>{pick?.providerId === p.id && pick.model === m && <Check size={14} className="text-accent" />}
+                        <ModelIcon model={m} preset={p.preset} name={p.name} size={20} /><span className="min-w-0 flex-1 truncate">{m}</span><ModelBadges provider={{ preset: p.preset }} id={m} compact />{pick?.providerId === p.id && pick.model === m && <Check size={14} className="text-accent" />}
                       </button>
                     ))}
                   </div>

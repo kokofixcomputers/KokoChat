@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Check, ChevronDown, Plus, Search } from 'lucide-react'
 import { Popover } from './ui'
 import { ModelIcon } from './ModelIcon'
+import { ModelBadges } from './ModelBadges'
 import { cn } from '../lib/utils'
 
 /** Searchable model menu in the same style as the chat's model picker. Any value can be typed, not just the listed ones. */
@@ -57,7 +58,7 @@ export function ModelSelect({ value, onChange, options, preset = 'openai', provi
               )}
               {list.map((m) => (
                 <button key={m} type="button" onClick={() => pick(m)} className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-sm transition hover:bg-fg/5">
-                  {icon(m, 22)}<span className="min-w-0 flex-1 truncate">{m}</span>{m === value && <Check size={15} className="shrink-0 text-accent" />}
+                  {icon(m, 22)}<span className="min-w-0 flex-1 truncate">{m}</span>{icons && <ModelBadges provider={{ preset }} id={m} compact />}{m === value && <Check size={15} className="shrink-0 text-accent" />}
                 </button>
               ))}
               {!list.length && !custom && <p className="px-3 py-4 text-center text-xs text-faint">Nothing matches</p>}

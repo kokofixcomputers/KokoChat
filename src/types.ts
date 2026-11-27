@@ -21,6 +21,9 @@ export interface Provider {
 export interface ModelInfo {
   id: string
   created?: number
+  /** from the server's model list, when it says */
+  vision?: boolean
+  reasoning?: boolean
 }
 
 export interface Attachment {

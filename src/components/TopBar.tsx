@@ -5,6 +5,7 @@ import { Popover, IconButton } from './ui'
 import { presetOf } from '../lib/providers'
 import { cn } from '../lib/utils'
 import { ModelIcon, ProviderDot } from './ModelIcon'
+import { ModelBadges } from './ModelBadges'
 export { ProviderDot }
 import { setCompare } from '../lib/compare'
 import { NotebookPen, Share2, Columns2, MoreHorizontal } from 'lucide-react'
@@ -43,7 +44,7 @@ function ModelPicker() {
   return (
     <Popover
       side="bottom"
-      panelClassName="w-80 max-w-[90vw]"
+      panelClassName="w-96 max-w-[90vw]"
       button={(open, toggle) => (
         <button data-tour="model" onClick={toggle} className={cn('flex h-10 max-w-[60vw] items-center gap-2 rounded-full px-3 text-sm font-medium transition hover:bg-fg/5', open && 'bg-fg/5')}>
           {current && selected ? <ModelIcon model={selected.model} preset={current.preset} name={current.name} size={22} /> : <Plug size={16} className="text-muted" />}
@@ -66,7 +67,7 @@ function ModelPicker() {
                   const on = selected?.providerId === p.id && selected.model === m.id
                   return (
                     <button key={m.id} onClick={() => { select(p.id, m.id); close() }} className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-sm transition hover:bg-fg/5">
-                      <ModelIcon model={m.id} preset={p.preset} name={p.name} size={22} /><span className="flex-1 truncate">{m.id}</span>{on && <Check size={15} className="text-accent" />}
+                      <ModelIcon model={m.id} preset={p.preset} name={p.name} size={22} /><span className="min-w-0 flex-1 truncate" title={m.id}>{m.id}</span><ModelBadges provider={p} id={m.id} info={m} />{on && <Check size={15} className="shrink-0 text-accent" />}
                     </button>
                   )
                 })}
@@ -161,7 +162,7 @@ function MultiModelPicker() {
                 const blocked = (!on && sel.length >= 4) || (on && sel.length <= 2)
                 return (
                   <button key={m.id} role="checkbox" aria-checked={on} onClick={() => toggle(p.id, m.id)} className={cn('flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-sm transition hover:bg-fg/5', blocked && !on && 'opacity-40')}>
-                    <Check2 on={on} /><ModelIcon model={m.id} preset={p.preset} name={p.name} size={20} /><span className="min-w-0 flex-1 truncate">{m.id}</span>
+                    <Check2 on={on} /><ModelIcon model={m.id} preset={p.preset} name={p.name} size={20} /><span className="min-w-0 flex-1 truncate" title={m.id}>{m.id}</span><ModelBadges provider={p} id={m.id} info={m} compact />
                   </button>
                 )
               })}

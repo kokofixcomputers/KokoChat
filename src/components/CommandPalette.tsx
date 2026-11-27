@@ -3,6 +3,7 @@ import { Cpu, FolderOpen, MessageSquare, Search, TextSearch } from 'lucide-react
 import { useStore } from '../store'
 import { getActions } from './actions'
 import { ModelIcon } from './ModelIcon'
+import { modelBadges } from '../lib/modelBadges'
 import { cn } from '../lib/utils'
 import { requestGoto, searchMessages, queryTokens } from '../lib/search'
 
@@ -54,7 +55,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     out.push(...getActions().filter((a) => match(a.label) || match(a.slash ?? '')).map((a) => ({ id: 'a' + a.id, group: 'Actions', label: a.label, hint: a.hint, icon: a.icon, run: a.run })))
     if (ql) {
       const ms = providers.flatMap((p) => p.models.filter((m) => m.id.toLowerCase().includes(ql)).map((m) => ({ p, m }))).slice(0, 8)
-      out.push(...ms.map(({ p, m }) => ({ id: 'mo' + p.id + m.id, group: 'Switch model', label: m.id, hint: p.name, icon: <ModelIcon model={m.id} preset={p.preset} name={p.name} size={18} />, run: () => select(p.id, m.id) })))
+      out.push(...ms.map(({ p, m }) => ({ id: 'mo' + p.id + m.id, group: 'Switch model', label: m.id, hint: [p.name, ...modelBadges(p.preset, m.id, m, p.baseUrl).filter((b) => b.tone === 'free').map((b) => b.label)].join(' · '), icon: <ModelIcon model={m.id} preset={p.preset} name={p.name} size={18} />, run: () => select(p.id, m.id) })))
     }
     // keep each group together, in a fixed order
     const order = ['Messages', 'Projects', 'Chats', 'Actions', 'Switch model']
