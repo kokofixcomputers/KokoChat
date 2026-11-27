@@ -2,7 +2,14 @@ import { create } from 'zustand'
 import { useStore } from '../store'
 
 export type PublishKind = 'html' | 'chart' | 'diagram' | 'mermaid'
-export interface PublishItem { ref: string; title: string; kind: PublishKind; content: string }
+export interface PublishItem {
+  ref: string
+  title: string
+  kind: PublishKind
+  content: string
+  /** also recognises a page published under an older kind of reference */
+  adopts?: (page: Published) => boolean
+}
 export interface Published { id: string; kind?: PublishKind; ref: string; title: string; created: number; updated: number; views: number; size: number }
 
 const cfg = () => useStore.getState().sync
@@ -25,8 +32,15 @@ export const usePublished = create<PubState>((set) => ({
   load: async () => { const r = await call<{ artifacts: Published[] }>('/v1/artifacts'); set({ items: r.artifacts, loaded: true }) },
 }))
 
+/** The page already published for this item, if any. */
+export const findPublished = (items: Published[], item: PublishItem) => items.find((p) => p.ref === item.ref) ?? items.find((p) => item.adopts?.(p))
+
 /** Publish a page, chart or diagram; publishing the same one again updates the page at the same address. */
-export async function publishItem({ ref, title, kind, content }: PublishItem) {
+export async function publishItem(item: PublishItem) {
+  const { title, kind, content } = item
+  // the list says whether this is an update, so publishing without it could make a second page
+  if (!usePublished.getState().loaded) await usePublished.getState().load()
+  const ref = findPublished(usePublished.getState().items, item)?.ref ?? item.ref
   // HTML goes as `html` so it also works with a sync server that predates charts and diagrams
   const r = await call<{ id: string; republished: boolean }>('/v1/artifacts', 'POST', kind === 'html' ? { ref, title, html: content } : { ref, title, kind, content })
   await usePublished.getState().load().catch(() => {})

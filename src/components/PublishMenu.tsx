@@ -3,7 +3,7 @@ import { askConfirm } from '../lib/confirm'
 import { Globe, BarChart3, Workflow, Check, Copy, ExternalLink, Loader2, Trash2, RefreshCw } from 'lucide-react'
 import { useStore } from '../store'
 import { IconButton, Popover } from './ui'
-import { publishItem, publishedUrl, unpublish, usePublished, type PublishItem, type PublishKind } from '../lib/publish'
+import { findPublished, publishItem, publishedUrl, unpublish, usePublished, type PublishItem, type PublishKind } from '../lib/publish'
 import { toast } from '../lib/toast'
 import { fmtBytes } from '../lib/utils'
 
@@ -20,7 +20,7 @@ export function PublishMenu({ item, small }: { item: PublishItem; small?: boolea
   const loaded = usePublished((s) => s.loaded)
   const [busy, setBusy] = useState(false)
   useEffect(() => { if (signedIn && !loaded) usePublished.getState().load().catch(() => {}) }, [signedIn, loaded])
-  const live = items.find((p) => p.ref === item.ref)
+  const live = findPublished(items, item)
   const url = live ? publishedUrl(live.id) : ''
 
   const run = async (fn: () => Promise<void>) => { setBusy(true); try { await fn() } catch (e: any) { toast.error(e.message) } finally { setBusy(false) } }
