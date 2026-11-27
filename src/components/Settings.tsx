@@ -824,6 +824,10 @@ function General() {
       <NotificationSettings />
       {isDesktop() && <QuickAskSettings />}
       <FilesSettings />
+      <section className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface/50 p-4">
+        <div><div className="text-sm font-medium">Reply measurements</div><div className="text-xs text-muted">For power users. Shows time to first token and tokens per second under each new reply; select them for token counts, timings and cost. A ~ marks an estimate.</div></div>
+        <Toggle on={!!settings.replyStats} onChange={(b) => setSettings({ replyStats: b })} />
+      </section>
       <label className="text-sm font-medium">System prompt
         <textarea value={settings.systemPrompt} onChange={(e) => setSettings({ systemPrompt: e.target.value })} rows={5} className={cn(field, 'mt-2 h-auto resize-y py-2.5 font-normal leading-relaxed')} /></label>
       <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface/50 p-4">

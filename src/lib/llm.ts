@@ -15,6 +15,7 @@ import { isMemoryTool } from './memory'
 import { applySummary } from './context'
 import { userTextForModel } from './images'
 import { fillInput, fromAnthropic, fromOpenAI, recordUsage } from './usage'
+import { Meter, liveMeters, openAIStepUsage } from './stats'
 
 export interface RunOpts {
   provider: Provider
@@ -36,6 +37,8 @@ export interface RunOpts {
   effort: Effort
   signal: AbortSignal
   flush: () => void
+  /** set by runAssistant when reply measurements are on */
+  meter?: Meter
 }
 
 /** Gemini's OpenAI-compatible endpoint rejects some JSON-Schema keywords that other providers accept. */
@@ -134,6 +137,11 @@ function frame(o: RunOpts, name: string, output: string) {
 }
 
 async function execTools(o: RunOpts, calls: Pending[]) {
+  o.meter?.toolStart() // tools and waiting for you are not model time
+  try { return await runCalls(o, calls) } finally { o.meter?.toolEnd() }
+}
+
+async function runCalls(o: RunOpts, calls: Pending[]) {
   const outputs: { callId: string; output: string; images?: string[] }[] = []
   const runOne = async (c: Pending) => {
       try {
@@ -252,6 +260,7 @@ async function runResponses(o: RunOpts) {
       body.include = ['reasoning.encrypted_content']
       if (o.effort !== 'auto') body.reasoning.effort = o.effort
     }
+    o.meter?.begin(body)
     const res = await post(p, '/responses', body, o.signal)
     const calls: Pending[] = []
     const byItem = new Map<string, Pending>()
@@ -270,6 +279,7 @@ async function runResponses(o: RunOpts) {
             m.blocks!.push(block)
             const c = { callId: it.call_id, name: it.name, args: it.arguments ?? '', block }
             byItem.set(it.id, c)
+            o.meter?.delta('tool', (it.name?.length ?? 0) + (it.arguments?.length ?? 0))
           }
           break
         }
@@ -280,14 +290,16 @@ async function runResponses(o: RunOpts) {
         }
         case 'response.reasoning_summary_text.delta':
         case 'response.reasoning_text.delta':
+          o.meter?.delta(d.type === 'response.reasoning_text.delta' ? 'reasoning' : 'summary', d.delta?.length ?? 0)
           appendReasoning(m, d.delta ?? '')
           break
         case 'response.output_text.delta':
+          o.meter?.delta('text', d.delta?.length ?? 0)
           appendText(m, d.delta ?? '')
           break
         case 'response.function_call_arguments.delta': {
           const c = byItem.get(d.item_id)
-          if (c) { c.args += d.delta ?? ''; c.block.args = c.args }
+          if (c) { o.meter?.delta('tool', d.delta?.length ?? 0); c.args += d.delta ?? ''; c.block.args = c.args }
           break
         }
         case 'response.output_item.done': {
@@ -296,7 +308,7 @@ async function runResponses(o: RunOpts) {
           if (it?.type === 'reasoning') {
             for (let i = m.blocks!.length - 1; i >= 0; i--) {
               const b = m.blocks![i]
-              if (b.type === 'reasoning' && !b.endedAt) { b.endedAt = Date.now(); break }
+              if (b.type === 'reasoning' && !b.endedAt) { if (!b.text) o.meter?.hiddenReasoning(); b.endedAt = Date.now(); break }
             }
           } else if (it?.type === 'function_call') {
             const c = byItem.get(it.id)
@@ -308,6 +320,8 @@ async function runResponses(o: RunOpts) {
         case 'response.incomplete': {
           const u = fromOpenAI(d.response?.usage)
           if (u) recordUsage(p.id, o.model, fillInput(u, body))
+          o.meter?.usage(openAIStepUsage(d.response?.usage))
+          o.meter?.servedModel(d.response?.model)
           break
         }
         case 'response.failed':
@@ -317,6 +331,7 @@ async function runResponses(o: RunOpts) {
       }
       o.flush()
     }
+    o.meter?.end()
     closeReasoning(m)
     if (!calls.length) return
     const outs = await execTools(o, calls)
@@ -366,16 +381,18 @@ async function runChat(o: RunOpts) {
     // Gemini's compatible endpoint only returns its thinking when asked, wrapped in <thought> tags
     if (thoughts) body.extra_body = { google: { thinking_config: { include_thoughts: true } } }
     let res: Response
+    o.meter?.begin(body)
     try { res = await post(p, '/chat/completions', body, o.signal) } catch (e: any) {
       if (!thoughts || e?.status !== 400) throw e
       geminiThoughtsOk = false
       delete body.extra_body
+      o.meter?.begin(body)
       res = await post(p, '/chat/completions', body, o.signal)
     }
     let content = ''
     let inThought = false
     let buf = ''
-    const emit = (t: string) => { if (!t) return; if (inThought) appendReasoning(m, t); else { content += t; appendText(m, t) } }
+    const emit = (t: string) => { if (!t) return; o.meter?.delta(inThought ? 'summary' : 'text', t.length); if (inThought) appendReasoning(m, t); else { content += t; appendText(m, t) } }
     const feed = (chunk: string) => {
       buf += chunk
       while (buf) {
@@ -394,11 +411,13 @@ async function runChat(o: RunOpts) {
       try { d = JSON.parse(ev.data) } catch { continue }
       if (d.error) throw new Error(d.error.message ?? JSON.stringify(d.error))
       if (d.usage) { const u = fromOpenAI(d.usage); if (u) recordUsage(p.id, o.model, fillInput(u, body)) }
+      if (d.usage) o.meter?.usage(openAIStepUsage(d.usage, p.preset === 'gemini'))
+      o.meter?.servedModel(d.model)
       const delta = d.choices?.[0]?.delta
       if (!delta) continue
       const r = delta.reasoning_content ?? delta.reasoning
-      if (typeof r === 'string' && r) appendReasoning(m, r)
-      if (delta.content) { if (thoughts) feed(delta.content); else { content += delta.content; appendText(m, delta.content) } }
+      if (typeof r === 'string' && r) { o.meter?.delta('reasoning', r.length); appendReasoning(m, r) }
+      if (delta.content) { if (thoughts) feed(delta.content); else { o.meter?.delta('text', delta.content.length); content += delta.content; appendText(m, delta.content) } }
       for (const tc of delta.tool_calls ?? []) {
         const i = tc.index ?? 0
         const cur = (tcs[i] ??= { id: tc.id ?? uid(), name: '', args: '' })
@@ -406,6 +425,7 @@ async function runChat(o: RunOpts) {
         if (tc.extra_content) cur.extra = tc.extra_content // Gemini 3: thought signature that must be sent back with the call
         if (tc.function?.name) cur.name += tc.function.name
         if (tc.function?.arguments) cur.args += tc.function.arguments
+        o.meter?.delta('tool', (tc.function?.name?.length ?? 0) + (tc.function?.arguments?.length ?? 0))
         if (!cur.block && cur.name) {
           closeReasoning(m)
           cur.block = { type: 'tool', id: uid(), callId: cur.id, name: cur.name, args: '', status: 'running', startedAt: Date.now() }
@@ -416,6 +436,7 @@ async function runChat(o: RunOpts) {
       o.flush()
     }
     if (buf) { emit(buf); buf = '' }
+    o.meter?.end()
     closeReasoning(m)
     const calls: Pending[] = tcs.filter((t) => t?.block).map((t) => ({ callId: t.id, name: t.name, args: t.args, block: t.block! }))
     if (!calls.length) return
@@ -487,6 +508,7 @@ async function runAnthropic(o: RunOpts) {
       const tc = step === 0 ? initialToolChoice(o, tools, 'anthropic') : undefined // forced tools are not allowed together with thinking
       if (tc) body.tool_choice = tc === 'required' ? { type: 'any' } : tc
     }
+    o.meter?.begin(body)
     const res = await post(p, '/messages', body, o.signal)
 
     type Cur = { entry: any; json?: string; ui?: Pending['block'] }
@@ -496,14 +518,21 @@ async function runAnthropic(o: RunOpts) {
       let d: any
       try { d = JSON.parse(ev.data) } catch { continue }
       if (d.type === 'error') throw new Error(d.error?.message ?? 'Stream error')
-      if (d.type === 'message_start') au = fromAnthropic(d.message?.usage)
-      else if (d.type === 'message_delta' && au) au.output = Number(d.usage?.output_tokens ?? au.output)
+      if (d.type === 'message_start') {
+        au = fromAnthropic(d.message?.usage)
+        o.meter?.usage({ ...au, output: undefined }) // the output count here is only a placeholder
+        o.meter?.servedModel(d.message?.model)
+      } else if (d.type === 'message_delta' && au) {
+        au.output = Number(d.usage?.output_tokens ?? au.output)
+        if (d.usage?.output_tokens !== undefined) o.meter?.usage({ ...au, reasoning: d.usage.output_tokens_details?.thinking_tokens })
+      }
       if (d.type === 'content_block_start') {
         const cb = d.content_block ?? {}
         if (cb.type === 'thinking') {
           m.blocks!.push({ type: 'reasoning', id: uid(), text: '', startedAt: Date.now() })
           cur.set(d.index, { entry: { type: 'thinking', thinking: '', signature: '' } })
         } else if (cb.type === 'redacted_thinking') {
+          o.meter?.hiddenReasoning()
           cur.set(d.index, { entry: cb })
         } else if (cb.type === 'text') {
           cur.set(d.index, { entry: { type: 'text', text: '' } })
@@ -512,22 +541,24 @@ async function runAnthropic(o: RunOpts) {
           const ui: Pending['block'] = { type: 'tool', id: uid(), callId: cb.id, name: cb.name, args: '', status: 'running', startedAt: Date.now() }
           m.blocks!.push(ui)
           cur.set(d.index, { entry: { type: 'tool_use', id: cb.id, name: cb.name, input: {} }, json: '', ui })
+          o.meter?.delta('tool', cb.name?.length ?? 0)
         }
       } else if (d.type === 'content_block_delta') {
         const c = cur.get(d.index)
         const dl = d.delta ?? {}
         if (!c) continue
-        if (dl.type === 'text_delta') { c.entry.text += dl.text ?? ''; appendText(m, dl.text ?? '') }
-        else if (dl.type === 'thinking_delta') { c.entry.thinking += dl.thinking ?? ''; appendReasoning(m, dl.thinking ?? '') }
+        if (dl.type === 'text_delta') { o.meter?.delta('text', dl.text?.length ?? 0); c.entry.text += dl.text ?? ''; appendText(m, dl.text ?? '') }
+        else if (dl.type === 'thinking_delta') { o.meter?.delta('reasoning', dl.thinking?.length ?? 0); c.entry.thinking += dl.thinking ?? ''; appendReasoning(m, dl.thinking ?? '') }
         else if (dl.type === 'signature_delta') c.entry.signature += dl.signature ?? ''
-        else if (dl.type === 'input_json_delta') { c.json = (c.json ?? '') + (dl.partial_json ?? ''); c.ui!.args = c.json }
+        else if (dl.type === 'input_json_delta') { o.meter?.delta('tool', dl.partial_json?.length ?? 0); c.json = (c.json ?? '') + (dl.partial_json ?? ''); c.ui!.args = c.json }
       } else if (d.type === 'content_block_stop') {
         const c = cur.get(d.index)
-        if (c?.entry.type === 'thinking') closeReasoning(m)
+        if (c?.entry.type === 'thinking') { if (!c.entry.thinking && c.entry.signature) o.meter?.hiddenReasoning(); closeReasoning(m) }
         if (c?.entry.type === 'tool_use') c.entry.input = safeJson(c.json ?? '')
       }
       o.flush()
     }
+    o.meter?.end()
     closeReasoning(m)
     if (au) recordUsage(p.id, o.model, fillInput(au, body))
 
@@ -551,7 +582,18 @@ async function runAnthropic(o: RunOpts) {
   }
 }
 
-export async function runAssistant(o: RunOpts) {
+export async function runAssistant(opts: RunOpts) {
+  const o: RunOpts = opts.settings.replyStats ? { ...opts, meter: new Meter(opts.provider.name, opts.model) } : opts
+  if (o.meter) liveMeters.set(o.draft.id, o.meter)
+  // also after a stop or an error, so whatever did arrive is still measured
+  try { await dispatch(o) } finally {
+    if (o.meter) liveMeters.delete(o.draft.id)
+    const stats = o.meter?.result()
+    if (stats) o.draft.stats = stats
+  }
+}
+
+async function dispatch(o: RunOpts) {
   o.draft.blocks ??= []
   if (o.provider.apiMode === 'responses' && o.provider.preset === 'gemini') await runChat(o) // Gemini has no Responses API
   else if (o.provider.apiMode === 'responses') {

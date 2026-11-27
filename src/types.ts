@@ -78,6 +78,40 @@ export interface Artifact {
   meta?: { prompt?: string; enhanced?: string; model?: string; aspect?: string; seconds?: number }
 }
 
+/** Optional measurements of one reply (see lib/stats.ts). Times are in milliseconds; fields with nothing to say are left out. */
+export interface ReplyStats {
+  /** provider name at the time */
+  via: string
+  /** the model the server says it used, when it differs from the one asked for */
+  served?: string
+  /** time to first token (reasoning, text or tool call) */
+  ttft?: number
+  /** output tokens per second while generating */
+  tps?: number
+  /** input tokens (cache reads and writes included) and output tokens, summed over every request */
+  in: number
+  out: number
+  /** true when a number is (partly) worked out from the text length, because the provider did not report it */
+  estIn?: boolean
+  estOut?: boolean
+  estTps?: boolean
+  cached?: number
+  cacheWrite?: number
+  reasoning?: number
+  /** some reasoning was hidden or summarized, so the speed leaves it out */
+  hidden?: boolean
+  /** a request was stopped or failed part-way */
+  partial?: boolean
+  /** number of model requests, when more than one (tool loops) */
+  requests?: number
+  /** time spent waiting for and receiving the model */
+  modelMs: number
+  /** time spent running tools, including waiting for your answers and approvals */
+  toolMs?: number
+  /** USD from the price list; an estimate */
+  cost?: number
+}
+
 /** Everything about a reply that can differ between regenerations. */
 export interface MessageVersion {
   blocks?: Block[]
@@ -87,6 +121,7 @@ export interface MessageVersion {
   status?: Message['status']
   error?: string
   durationMs?: number
+  stats?: ReplyStats
   edited?: boolean
   createdAt: number
   mode?: 'research'
@@ -110,6 +145,7 @@ export interface Message {
   model?: string
   status?: 'streaming' | 'done' | 'stopped' | 'error'
   durationMs?: number
+  stats?: ReplyStats
   edited?: boolean
   /** text the user quoted from earlier messages */
   quotes?: string[]
@@ -284,6 +320,8 @@ export interface Settings {
   deepResearch: boolean
   sandbox: SandboxSettings
   autoCompact: boolean
+  /** measure each reply (time to first token, tokens per second, token counts) and show it under the reply */
+  replyStats: boolean
   /** context window override in tokens (0 = guess from the model name) */
   contextWindow: number
   image: ImageSettings

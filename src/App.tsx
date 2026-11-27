@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { clampWidth, dragResize } from './lib/resize'
 import { useMigrationResult } from './components/Migration'
 import { ConfirmHost } from './components/ConfirmHost'
+import { MermaidActions } from './lib/mermaidActions'
+import { PublishMenu } from './components/PublishMenu'
+import { mermaidItem } from './lib/publish'
 import { useHydrated, useStore } from './store'
 import { Sidebar } from './components/Sidebar'
 import { TopBar } from './components/TopBar'
@@ -57,6 +60,8 @@ function useAppearance() {
     el.style.setProperty('--app-font', FONTS[a.font] ?? FONTS.inter)
   }, [a])
 }
+
+const mermaidActions = (code: string) => <PublishMenu small item={mermaidItem(code)} />
 
 export default function App() {
   const hydrated = useHydrated()
@@ -136,7 +141,7 @@ export default function App() {
 
   if (!hydrated) return null
   return (
-    <>
+    <MermaidActions.Provider value={mermaidActions}>
       <div className="relative z-10 flex h-full flex-col">
       {mac && <TitleBar />}
       <div className={'flex min-h-0 flex-1 gap-3 p-3' + (mac ? ' pt-0' : '')}>
@@ -179,6 +184,6 @@ export default function App() {
         if (!f) return
         try { const c = await readChatsJson(f); importChats(c); toast.success(`Imported ${c.length} chat${c.length === 1 ? '' : 's'}`) } catch (err: any) { toast.error(err.message) }
       }} />
-    </>
+    </MermaidActions.Provider>
   )
 }

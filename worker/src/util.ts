@@ -16,6 +16,8 @@ export interface Env {
   DEV_LOG_CODES?: string
   /** per-account storage cap in bytes (default 3 MB) */
   QUOTA_BYTES?: string
+  /** address of the deployed web app; published chart and diagram pages load their viewer from it */
+  VIEWER_URL?: string
   /** optional: lets admins use the sandbox without pasting a Freestyle key into the app */
   FREESTYLE_API_KEY?: string
   /** test hook; defaults to https://api.freestyle.sh */

@@ -73,6 +73,7 @@ export const DEFAULT_SETTINGS: Settings = {
   deepResearch: false,
   sandbox: { enabled: false, apiKey: '', idleMinutes: 10, ttlHours: 8, snapshotId: '', sleepAfterTurn: true },
   autoCompact: true,
+  replyStats: false,
   contextWindow: 0,
   image: { enabled: true, providerId: '', model: 'gpt-image-1', quality: 'medium', aspect: 'auto' },
   video: { enabled: false, providerId: '', model: 'gemini-omni-1.2-flash', aspect: 'auto', seconds: 8, resolution: '720p' },
@@ -217,7 +218,7 @@ interface State {
   stop: (chatId: string) => void
 }
 
-const VERSION_KEYS = ['blocks', 'artifacts', 'sources', 'model', 'status', 'error', 'durationMs', 'edited', 'createdAt', 'mode'] as const
+const VERSION_KEYS = ['blocks', 'artifacts', 'sources', 'model', 'status', 'error', 'durationMs', 'stats', 'edited', 'createdAt', 'mode'] as const
 const takeVersion = (m: Message): MessageVersion => { const v: any = {}; for (const k of VERSION_KEYS) v[k] = (m as any)[k]; return v }
 const pickVersion = (v: MessageVersion): Partial<Message> => { const o: any = {}; for (const k of VERSION_KEYS) o[k] = (v as any)[k]; return o }
 

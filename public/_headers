@@ -1,0 +1,5 @@
+# Published charts and diagrams run sandboxed (opaque origin), so the viewer's files need CORS. They are public static files.
+/assets/*
+  Access-Control-Allow-Origin: *
+/viewer/*
+  Access-Control-Allow-Origin: *

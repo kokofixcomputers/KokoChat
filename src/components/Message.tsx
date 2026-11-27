@@ -18,6 +18,7 @@ import { IconButton } from './ui'
 import { ModelIcon } from './ModelIcon'
 import { RegenerateMenu, VersionSwitcher } from './RegenerateMenu'
 import { useStore } from '../store'
+import { LiveReplyStats, ReplyStatsChip } from './ReplyStats'
 import { toast } from '../lib/toast'
 import { cn } from '../lib/utils'
 
@@ -58,6 +59,7 @@ export const MessageView = memo(function MessageView({ chatId, m, last, latestUs
   const regenerate = useStore((s) => s.regenerate)
   const panel = useStore((s) => s.panel)
   const speaking = useStore((s) => s.speaking)
+  const showStats = useStore((s) => s.settings.replyStats)
   const editResend = useStore((s) => s.editResend)
   const editMessage = useStore((s) => s.editMessage)
   const forkChat = useStore((s) => s.forkChat)
@@ -260,11 +262,15 @@ export const MessageView = memo(function MessageView({ chatId, m, last, latestUs
           <IconButton className="h-7 w-7" title="Fork chat from here" onClick={fork}><GitFork size={14} /></IconButton>
           <IconButton className="h-7 w-7 hover:text-danger" title="Delete message" onClick={remove}><Trash2 size={14} /></IconButton>
           {m.model && <span className="ml-2 flex items-center gap-1.5 text-xs text-faint"><ModelIcon model={m.model} preset={prov?.preset ?? 'custom'} name={prov?.name ?? ''} size={16} />{m.model}{m.durationMs ? ` · ${(m.durationMs / 1000).toFixed(m.durationMs < 10000 ? 1 : 0)}s` : ''}{m.edited ? ' · edited' : ''}</span>}
+          {showStats && m.stats && <ReplyStatsChip stats={m.stats} durationMs={m.durationMs} model={m.model} />}
           <PluginSlot name="message.footer" data={pluginMsg} className="ml-2 flex items-center gap-2 text-xs text-faint" />
         </div>
       )}
       {streaming && !readOnly && (
-        <div className="-ml-2 flex"><IconButton className="h-7 w-7 hover:text-danger" title="Delete message" onClick={remove}><Trash2 size={14} /></IconButton></div>
+        <div className="-ml-2 flex items-center">
+          <IconButton className="h-7 w-7 shrink-0 hover:text-danger" title="Delete message" onClick={remove}><Trash2 size={14} /></IconButton>
+          {showStats && <LiveReplyStats messageId={m.id} startedAt={m.createdAt} model={m.model} />}
+        </div>
       )}
     </div>
   )

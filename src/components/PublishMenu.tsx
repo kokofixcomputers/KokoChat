@@ -1,38 +1,41 @@
 import { useEffect, useState } from 'react'
 import { askConfirm } from '../lib/confirm'
-import { Globe, Check, Copy, ExternalLink, Loader2, Trash2, RefreshCw } from 'lucide-react'
+import { Globe, BarChart3, Workflow, Check, Copy, ExternalLink, Loader2, Trash2, RefreshCw } from 'lucide-react'
 import { useStore } from '../store'
-import type { Artifact } from '../types'
 import { IconButton, Popover } from './ui'
-import { publishArtifact, publishedUrl, unpublish, usePublished } from '../lib/publish'
+import { publishItem, publishedUrl, unpublish, usePublished, type PublishItem, type PublishKind } from '../lib/publish'
 import { toast } from '../lib/toast'
 import { fmtBytes } from '../lib/utils'
 
 const copy = (t: string) => navigator.clipboard.writeText(t).then(() => toast.success('Link copied'), () => toast.error('Could not copy'))
 
-/** Publish button for HTML artifacts: puts the page on the KokoChat server and gives back a public link. */
-export function PublishMenu({ artifact }: { artifact: Artifact }) {
+const NOUN: Record<PublishKind, string> = { html: 'page', chart: 'chart', diagram: 'diagram', mermaid: 'diagram' }
+const KindIcon = ({ kind }: { kind?: PublishKind }) => (kind === 'chart' ? <BarChart3 size={16} /> : kind === 'diagram' || kind === 'mermaid' ? <Workflow size={16} /> : <Globe size={16} />)
+
+/** Publish button: puts a page, chart or diagram on the KokoChat server and gives back a public link. `small` fits a code block header. */
+export function PublishMenu({ item, small }: { item: PublishItem; small?: boolean }) {
+  const noun = NOUN[item.kind]
   const signedIn = useStore((s) => !!s.sync.token)
   const items = usePublished((s) => s.items)
   const loaded = usePublished((s) => s.loaded)
   const [busy, setBusy] = useState(false)
   useEffect(() => { if (signedIn && !loaded) usePublished.getState().load().catch(() => {}) }, [signedIn, loaded])
-  const live = items.find((p) => p.ref === artifact.id)
+  const live = items.find((p) => p.ref === item.ref)
   const url = live ? publishedUrl(live.id) : ''
 
   const run = async (fn: () => Promise<void>) => { setBusy(true); try { await fn() } catch (e: any) { toast.error(e.message) } finally { setBusy(false) } }
-  const doPublish = () => run(async () => { const r = await publishArtifact(artifact.id, artifact.title, artifact.content); await copy(r.url); toast.success(r.republished ? 'Page updated' : 'Published, link copied') })
+  const doPublish = () => run(async () => { const r = await publishItem(item); await copy(r.url); toast.success(r.republished ? 'Published page updated' : 'Published, link copied') })
 
   return (
     <Popover side="bottom" align="right" button={(open, toggle) => (
-      <IconButton title={live ? 'Published' : 'Publish'} className={`h-8 w-8 ${live ? 'text-accent' : ''}`} onClick={toggle} aria-pressed={open}><Globe size={16} /></IconButton>
+      <IconButton title={live ? 'Published' : 'Publish'} className={`${small ? 'h-6 w-6' : 'h-8 w-8'} ${live ? 'text-accent' : ''}`} onClick={toggle} aria-pressed={open}><Globe size={small ? 13 : 16} /></IconButton>
     )} panelClassName="w-72 p-3">
       {(close) => !signedIn ? (
-        <div className="text-sm"><div className="font-medium">Publish this page</div><p className="mt-1 text-xs text-muted">Sign in under Settings → Sync to put this page online.</p>
+        <div className="text-sm"><div className="font-medium">Publish this {noun}</div><p className="mt-1 text-xs text-muted">Sign in under Settings → Sync to put this {noun} online.</p>
           <button onClick={() => { close(); useStore.getState().openSettings('sync') }} className="mt-2 rounded-full bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg">Open Sync</button></div>
       ) : (
         <div className="flex flex-col gap-2 text-sm">
-          <div className="font-medium">{live ? 'Published' : 'Publish this page'}</div>
+          <div className="font-medium">{live ? 'Published' : `Publish this ${noun}`}</div>
           {live ? (<>
             <div className="break-all rounded-xl bg-surface-2 px-2.5 py-2 text-xs">{url}</div>
             <div className="text-xs text-muted">{live.views} view{live.views === 1 ? '' : 's'} · {fmtBytes(live.size)} of your storage</div>
@@ -63,12 +66,12 @@ export function PublishedSettings() {
   const total = items.reduce((n, p) => n + p.size, 0)
   return (
     <div className="flex flex-col gap-3">
-      <div className="text-xs text-muted">Web pages you published from artifacts. {items.length ? `${items.length} page${items.length === 1 ? '' : 's'}, ${fmtBytes(total)} of your storage.` : ''}</div>
+      <div className="text-xs text-muted">Pages, charts and diagrams you published. {items.length ? `${items.length} page${items.length === 1 ? '' : 's'}, ${fmtBytes(total)} of your storage.` : ''}</div>
       {err && <div className="text-xs text-red-500">{err}</div>}
-      {loaded && !items.length && <div className="rounded-2xl border border-dashed border-line p-6 text-center text-sm text-muted">Nothing published yet. Open an HTML artifact and press the globe button.</div>}
+      {loaded && !items.length && <div className="rounded-2xl border border-dashed border-line p-6 text-center text-sm text-muted">Nothing published yet. Press the globe button on an HTML page, chart or diagram.</div>}
       {items.map((p) => (
         <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-line bg-surface/50 p-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent"><Globe size={16} /></span>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent"><KindIcon kind={p.kind} /></span>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">{p.title}</div>
             <div className="truncate text-xs text-muted">{publishedUrl(p.id)}</div>

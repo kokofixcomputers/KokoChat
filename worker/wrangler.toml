@@ -33,6 +33,8 @@ SMTP_FROM = "Koko Chat <noreply.kokochat@kokodev.cc>"
 # Local testing only: print codes to the worker log instead of sending email.
 DEV_LOG_CODES = "false"
 QUOTA_BYTES = "3145728"
+# Where the web app is deployed. Published chart and diagram pages load their viewer from it.
+VIEWER_URL = "https://kokochat.pages.dev"
 # Sign in with 1minRelay. The client id is public; put the secret in with:  npx wrangler secret put ONEMIN_CLIENT_SECRET
 ONEMIN_CLIENT_ID = "oac_e0a5a36e0fa37ae6c53204f3f7fa1a25"
 # ONEMIN_HOST = "https://v4.kokodev.cc"

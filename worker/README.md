@@ -45,6 +45,7 @@ Settings → Variables). `SMTP_PASS` is a **secret**: use `wrangler secret put S
 | `ADMIN_EMAILS` | `you@example.com,me@example.org` | optional; these emails get an **Admin** tab in the app (see below). Admins can always sign in, even if they are not in `ALLOWED_EMAILS`. |
 | `FREESTYLE_API_KEY` | secret | optional; used for admins who don't send their own key (sandbox) |
 | `QUOTA_BYTES` | `3145728` | per-account storage cap (3 MB) |
+| `VIEWER_URL` | `https://kokochat.pages.dev` | the deployed web app; published chart and diagram pages load their viewer from it |
 
 Any SMTP provider works (Fastmail, Gmail app password, Resend/Postmark/SES SMTP, Mailgun…).
 
@@ -78,6 +79,13 @@ Upgrading an existing database? Run once:
 
 ```bash
 npx wrangler d1 execute kokochat --remote --file=./migrations/0002_admin.sql
+```
+
+Publishing charts and diagrams needs the `kind` column. Run it once, **before** deploying the worker (and deploy the web app
+too, since the published pages load `/viewer/viewer.js` from it):
+
+```bash
+npx wrangler d1 execute kokochat --remote --file=./migrations/0005_artifact_kind.sql
 ```
 
 ## Sandbox (Freestyle) proxy

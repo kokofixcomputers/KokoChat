@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS artifacts (
   created INTEGER NOT NULL,
   updated INTEGER NOT NULL,
   views   INTEGER NOT NULL DEFAULT 0,
-  size    INTEGER NOT NULL DEFAULT 0
+  size    INTEGER NOT NULL DEFAULT 0,
+  kind    TEXT NOT NULL DEFAULT 'html'     -- html | chart | diagram | mermaid
 );
 CREATE INDEX IF NOT EXISTS artifacts_user ON artifacts (user_id);

@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Maximize, Minus, Plus } from 'lucide-react'
 import { layoutDiagram, parseSpec, type Laid, type LNode, type LEdge } from '../lib/diagram'
 import { IconButton } from './ui'
+import { useIsDark } from '../lib/useIsDark'
+
+export { useIsDark }
 
 /* ------------------------------ colours ------------------------------ */
 const PAL: Record<string, { stroke: string; dark: string }> = {
@@ -17,17 +20,6 @@ function tone(name: string | undefined, dark: boolean, filled = true) {
   const stroke = p ? (dark ? p.dark : p.stroke) : name && HEX.test(name) ? name : dark ? '#9ca3af' : '#4b5563'
   const fill = !filled ? 'none' : p || (name && HEX.test(name)) ? stroke + (dark ? '2e' : '22') : dark ? '#1f1f24' : '#ffffff'
   return { stroke, fill, text: dark ? '#f4f4f5' : '#111827' }
-}
-
-export function useIsDark() {
-  const get = () => document.documentElement.classList.contains('dark')
-  const [d, setD] = useState(get)
-  useEffect(() => {
-    const mo = new MutationObserver(() => setD(get()))
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-    return () => mo.disconnect()
-  }, [])
-  return d
 }
 
 /* ------------------------------ geometry ----------------------------- */
@@ -168,19 +160,22 @@ export async function diagramPngDataUrl(laid: Laid, dark: boolean, scale = 2): P
 }
 
 /* ------------------------------- viewer ------------------------------ */
-export function DiagramViewer({ content }: { content: string }) {
-  const dark = useIsDark()
-  const { laid, error } = useMemo(() => tryLayout(content), [content])
+export interface Bounds { minX: number; minY: number; width: number; height: number }
+export interface View { k: number; x: number; y: number }
+
+/** A surface you can drag around and zoom (wheel, buttons, double-click to fit). */
+export function PanZoom({ bounds, children }: { bounds: Bounds; children: (view: View) => ReactNode }) {
   const box = useRef<HTMLDivElement>(null)
-  const [view, setView] = useState({ k: 1, x: 0, y: 0 })
+  const [view, setView] = useState<View>({ k: 1, x: 0, y: 0 })
   const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null)
+  const { minX, minY, width, height } = bounds
 
   const fit = () => {
     const el = box.current
-    if (!el || !laid) return
+    if (!el) return
     const { width: W, height: H } = el.getBoundingClientRect()
-    const k = Math.min(W / laid.width, H / laid.height, 1.4) * 0.94
-    setView({ k, x: (W - laid.width * k) / 2 - laid.minX * k, y: (H - laid.height * k) / 2 - laid.minY * k })
+    const k = Math.min(W / width, H / height, 1.4) * 0.94
+    setView({ k, x: (W - width * k) / 2 - minX * k, y: (H - height * k) / 2 - minY * k })
   }
   useEffect(() => {
     fit()
@@ -189,12 +184,11 @@ export function DiagramViewer({ content }: { content: string }) {
     const ro = new ResizeObserver(fit)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [laid]) // eslint-disable-line
+  }, [minX, minY, width, height]) // eslint-disable-line
 
   const zoomAt = (f: number, cx: number, cy: number) =>
     setView((v) => { const k = Math.min(6, Math.max(0.1, v.k * f)); const r = k / v.k; return { k, x: cx - (cx - v.x) * r, y: cy - (cy - v.y) * r } })
 
-  if (error || !laid) return <div className="p-6 text-sm text-danger">Could not draw diagram: {error}</div>
   return (
     <div
       ref={box}
@@ -203,11 +197,10 @@ export function DiagramViewer({ content }: { content: string }) {
       onPointerDown={(e) => { (e.target as Element).setPointerCapture?.(e.pointerId); drag.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y } }}
       onPointerMove={(e) => { const d = drag.current; if (d) setView((v) => ({ ...v, x: d.vx + e.clientX - d.x, y: d.vy + e.clientY - d.y })) }}
       onPointerUp={() => (drag.current = null)}
+      onPointerCancel={() => (drag.current = null)}
       onDoubleClick={fit}
     >
-      <svg className="absolute inset-0 h-full w-full" xmlns="http://www.w3.org/2000/svg">
-        <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}><DiagramScene laid={laid} dark={dark} /></g>
-      </svg>
+      {children(view)}
       <div className="glass-strong absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-0.5 rounded-full p-1" onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
         <IconButton className="h-8 w-8" title="Zoom out" onClick={() => { const r = box.current!.getBoundingClientRect(); zoomAt(1 / 1.25, r.width / 2, r.height / 2) }}><Minus size={15} /></IconButton>
         <span className="w-11 text-center text-xs tabular-nums text-muted">{Math.round(view.k * 100)}%</span>
@@ -215,5 +208,20 @@ export function DiagramViewer({ content }: { content: string }) {
         <IconButton className="h-8 w-8" title="Fit to view" onClick={fit}><Maximize size={15} /></IconButton>
       </div>
     </div>
+  )
+}
+
+export function DiagramViewer({ content }: { content: string }) {
+  const dark = useIsDark()
+  const { laid, error } = useMemo(() => tryLayout(content), [content])
+  if (error || !laid) return <div className="p-6 text-sm text-danger">Could not draw diagram: {error}</div>
+  return (
+    <PanZoom bounds={laid}>
+      {(view) => (
+        <svg className="absolute inset-0 h-full w-full" xmlns="http://www.w3.org/2000/svg">
+          <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}><DiagramScene laid={laid} dark={dark} /></g>
+        </svg>
+      )}
+    </PanZoom>
   )
 }

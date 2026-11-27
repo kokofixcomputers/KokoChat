@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { memo, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
@@ -9,6 +9,8 @@ import { Favicon } from './ui'
 import { cn } from '../lib/utils'
 import { toast } from '../lib/toast'
 import { prepareMarkdown } from '../lib/mathText'
+import { useMermaid } from '../lib/mermaid'
+import { MermaidActions } from '../lib/mermaidActions'
 
 type MathPlugin = typeof import('../lib/mathRender').mathPlugin
 let mathPlugin: MathPlugin | undefined
@@ -47,27 +49,14 @@ export function CopyButton({ text, className }: { text: string; className?: stri
 }
 
 function Mermaid({ code }: { code: string }) {
-  const [svg, setSvg] = useState('')
-  const [err, setErr] = useState('')
+  const { svg, error: err } = useMermaid(code)
+  const actions = useContext(MermaidActions)
   const [src, setSrc] = useState(false)
-  useEffect(() => {
-    let dead = false
-    const t = setTimeout(async () => {
-      try {
-        const mermaid = (await import('mermaid')).default
-        const dark = document.documentElement.classList.contains('dark')
-        mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: dark ? 'dark' : 'neutral', fontFamily: 'Inter, sans-serif' })
-        const { svg } = await mermaid.render('m' + Math.random().toString(36).slice(2), code)
-        if (!dead) { setSvg(svg); setErr('') }
-      } catch (e: any) { if (!dead) setErr(String(e?.message ?? e).split('\n')[0]) }
-    }, 350)
-    return () => { dead = true; clearTimeout(t) }
-  }, [code])
   return (
-    <div className="my-4 overflow-hidden rounded-2xl border border-line bg-surface-2/70">
+    <div className="my-4 rounded-2xl border border-line bg-surface-2/70">
       <div className="flex items-center justify-between border-b border-line px-4 py-1.5">
         <span className="font-mono text-xs text-muted">mermaid</span>
-        <span className="flex items-center"><button onClick={() => setSrc((s) => !s)} className="rounded-full px-2 py-1 text-xs text-muted hover:bg-fg/5 hover:text-fg">{src ? 'Diagram' : 'Source'}</button><CopyButton text={code} /></span>
+        <span className="flex items-center"><button onClick={() => setSrc((s) => !s)} className="rounded-full px-2 py-1 text-xs text-muted hover:bg-fg/5 hover:text-fg">{src ? 'Diagram' : 'Source'}</button><CopyButton text={code} />{svg && !err && actions?.(code)}</span>
       </div>
       {src || (err && !svg) ? <pre className="code"><code>{code}</code>{err && <div className="mt-2 text-danger">{err}</div>}</pre> : svg ? <div className="flex justify-center overflow-x-auto p-4 [&_svg]:h-auto [&_svg]:max-w-full" dangerouslySetInnerHTML={{ __html: svg }} /> : <div className="p-6 text-center text-sm text-muted"><span className="shimmer">Rendering diagram…</span></div>}
     </div>
