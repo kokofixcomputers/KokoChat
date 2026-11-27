@@ -1,5 +1,6 @@
 import { HttpError, now, randomToken, type Env } from './util'
 import { usage } from './sync'
+import { addBadge, badgeScript, maskEmail } from './badge'
 
 const MAX_PAGE = 4 * 1024 * 1024
 const CHUNK = 400_000
@@ -62,13 +63,14 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`)
  * The shell for a published chart or diagram: the source as inert JSON, drawn by the viewer from the app's site.
  * It is sandboxed like HTML pages, and may additionally run scripts and fetch code only from that site.
  */
-function viewerPage(viewerUrl: string, kind: string, title: string, content: string) {
+function viewerPage(viewerUrl: string, kind: string, title: string, content: string, publisher: string) {
   const base = viewerUrl.replace(/\/+$/, '')
   const origin = new URL(base).origin
+  const nonce = randomToken(16)
   const csp = [
     'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox',
     "default-src 'none'",
-    `script-src ${origin}`,
+    `script-src ${origin} 'nonce-${nonce}'`,
     `style-src ${origin} 'unsafe-inline' https://fonts.googleapis.com`,
     `font-src ${origin} https://fonts.gstatic.com data:`,
     `img-src ${origin} https: data:`,
@@ -81,7 +83,7 @@ function viewerPage(viewerUrl: string, kind: string, title: string, content: str
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><title>${esc(title)}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>html,body,#root{height:100%;margin:0}@supports (height:100dvh){#root{height:100dvh}}body{font-family:system-ui;color:#777;background:#f4f4f5}@media (prefers-color-scheme:dark){body{background:#0d0d0e}}</style></head>
-<body><div id="root"><p style="padding:24px;text-align:center">Loading…</p></div><script type="application/json" id="koko-artifact">${data}</script><script type="module" crossorigin src="${esc(base)}/viewer/viewer.js"></script></body></html>`
+<body><div id="root"><p style="padding:24px;text-align:center">Loading…</p></div><script type="application/json" id="koko-artifact">${data}</script><script type="module" crossorigin src="${esc(base)}/viewer/viewer.js"></script>${badgeScript(publisher, nonce)}</body></html>`
   return { html, csp }
 }
 
@@ -96,13 +98,14 @@ export async function serve(env: Env, id: string): Promise<Response> {
   }
   const gone = (status: number, msg: string) => new Response(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>${msg}</title><body style="font:16px system-ui;display:grid;place-items:center;min-height:100vh;margin:0;color:#555">${msg}</body>`, { status, headers })
   if (!ID_RE.test(id)) return gone(404, 'This page does not exist.')
-  const row = await env.DB.prepare('SELECT user_id, kind, title FROM artifacts WHERE id = ?').bind(id).first<{ user_id: string; kind: string; title: string }>()
+  const row = await env.DB.prepare('SELECT a.user_id, a.kind, a.title, u.email FROM artifacts a LEFT JOIN users u ON u.user_id = a.user_id WHERE a.id = ?').bind(id).first<{ user_id: string; kind: string; title: string; email: string | null }>()
   if (!row) return gone(404, 'This page does not exist or was unpublished.')
   const { results } = await env.DB.prepare('SELECT chunk FROM blobs WHERE user_id = ? AND key = ? AND rev = 1 ORDER BY idx').bind(row.user_id, 'artifact:' + id).all<{ chunk: string }>()
   await env.DB.prepare('UPDATE artifacts SET views = views + 1 WHERE id = ?').bind(id).run()
   const content = results.map((r) => r.chunk).join('')
-  if (row.kind === 'html') return new Response(content, { headers })
+  const publisher = maskEmail(row.email)
+  if (row.kind === 'html') return new Response(addBadge(content, badgeScript(publisher)), { headers })
   if (!env.VIEWER_URL) return gone(503, 'This server is not set up to show charts and diagrams.')
-  const page = viewerPage(env.VIEWER_URL, row.kind, row.title, content)
+  const page = viewerPage(env.VIEWER_URL, row.kind, row.title, content, publisher)
   return new Response(page.html, { headers: { ...headers, 'Content-Security-Policy': page.csp } })
 }
