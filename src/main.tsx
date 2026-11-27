@@ -2,13 +2,16 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import { initTauri, initTauriQuick } from './lib/tauri'
+import { showsLanding } from './lib/site'
 
 const root = () => createRoot(document.getElementById('root')!)
 const q = new URLSearchParams(location.search)
 
+// (in development, ?landing previews it)
+if (showsLanding(location) || (import.meta.env.DEV && q.has('landing'))) import('./components/Landing').then((m) => root().render(<StrictMode><m.Landing /></StrictMode>))
 // The floating quick-ask window and the screenshot overlay are separate, tiny pages: they must not load the app's store
 // (two windows saving the same data would overwrite each other).
-if (q.has('quick')) initTauriQuick().catch((e) => console.error(e)).then(() => import('./components/QuickAsk')).then((m) => root().render(<m.QuickAsk />))
+else if (q.has('quick')) initTauriQuick().catch((e) => console.error(e)).then(() => import('./components/QuickAsk')).then((m) => root().render(<m.QuickAsk />))
 else if (q.has('select')) import('./components/SelectOverlay').then((m) => root().render(<m.SelectOverlay />))
 else if (location.pathname.startsWith('/oauth/1min')) import('./components/OneMinCallback').then((m) => root().render(<m.OneMinCallback />))
 else if (location.pathname.startsWith('/oauth/callback')) import('./lib/mcpAuth').then((m) => m.handleCallback())

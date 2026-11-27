@@ -1,0 +1,47 @@
+/* The landing page only; colours and glass come from the app's own theme. */
+.lp-display { font-family: "Bricolage Grotesque", "Inter", ui-sans-serif, system-ui, sans-serif; }
+.lp-h2 { font-size: clamp(2rem, 4.6vw, 3.25rem); font-weight: 800; line-height: 1.05; letter-spacing: -0.03em; }
+.lp-cta { justify-content: center; white-space: nowrap; transition: transform .2s, box-shadow .2s; }
+.lp-cta:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -12px color-mix(in srgb, var(--accent) 70%, transparent); }
+.lp-cta:active { transform: scale(.97); }
+
+.lp-aurora { position: absolute; inset: -80px 0 0; height: 620px; pointer-events: none; filter: blur(20px);
+  background: radial-gradient(38% 46% at 28% 30%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 70%),
+    radial-gradient(34% 42% at 74% 24%, rgb(56 189 248 / .16), transparent 70%),
+    radial-gradient(30% 36% at 55% 62%, rgb(250 204 21 / .12), transparent 70%);
+  animation: lp-drift 14s ease-in-out infinite alternate; }
+@keyframes lp-drift { to { transform: translate3d(0, 28px, 0) scale(1.05); } }
+
+.lp-frame { overflow: hidden; border-radius: clamp(14px, 2.4vw, 28px); border: 1px solid var(--line); padding: clamp(3px, .6vw, 8px); background: var(--glass);
+  box-shadow: 0 50px 100px -45px rgb(0 0 0 / .45), 0 12px 30px -18px rgb(0 0 0 / .25); }
+.lp-frame img { border-radius: clamp(11px, 2vw, 21px); }
+
+.lp-float { animation: lp-bob 6s ease-in-out infinite; }
+.lp-float-b { animation-delay: -2s; }
+.lp-float-c { animation-delay: -4s; }
+@keyframes lp-bob { 50% { translate: 0 -12px; } }
+
+.lp-rise { animation: lp-rise .8s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes lp-rise { from { opacity: 0; translate: 0 22px; } }
+.lp-reveal { opacity: 0; translate: 0 26px; transition: opacity .7s ease, translate .7s cubic-bezier(.2,.8,.2,1); }
+.lp-in { opacity: 1; translate: 0 0; }
+
+.lp-marquee { overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 12% 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12% 88%, transparent); }
+.lp-track { display: flex; width: max-content; padding-block: 12px; animation: lp-scroll 48s linear infinite; }
+.lp-marquee:hover .lp-track { animation-play-state: paused; }
+@keyframes lp-scroll { to { transform: translateX(-50%); } }
+
+.lp-card { transition: translate .25s ease; }
+.lp-card:hover { translate: 0 -4px; }
+.lp-card-wide { background-image: radial-gradient(90% 120% at 100% 0%, var(--accent-soft), transparent 60%); }
+/* many blurred layers make scrolling stutter */
+.lp .lp-card, .lp .lp-track .glass { backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+.lp-faq summary::-webkit-details-marker { display: none; }
+.lp-plus { transition: rotate .2s; }
+.lp-faq[open] .lp-plus { rotate: 45deg; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-aurora, .lp-float, .lp-rise, .lp-track { animation: none; }
+  .lp-reveal { opacity: 1; translate: none; transition: none; }
+}
