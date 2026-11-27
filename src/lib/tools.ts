@@ -1,3 +1,4 @@
+import { chartProblem } from './chartSpec'
 import type { Artifact, ArtifactKind, Message, Provider, Settings, Source } from '../types'
 import { domainOf, uid } from './utils'
 import { callMcpTool, type McpBinding } from './mcp'
@@ -60,7 +61,7 @@ export const CREATE_ARTIFACT: ToolDef = {
       content: {
         type: 'string',
         description:
-          'The full content. ' + 'For kind "diagram" (flowcharts, architecture/system diagrams, org charts, mind maps, sequences of steps, simple drawings built from shapes, lines, text and arrows) content must be a JSON string in ONE of two forms. (1) GRAPH, auto-laid-out (preferred for flowcharts/architecture): {"type":"graph","direction":"TB"|"LR","nodes":[{"id":"a","label":"Start","shape":"pill|rect|rounded|diamond|ellipse|circle|hexagon|cylinder|parallelogram|note","color":"green|blue|amber|red|purple|teal|pink|gray","group":"g1"}],"edges":[{"from":"a","to":"b","label":"yes","style":"solid|dashed|dotted","arrow":"end|both|none"}],"groups":[{"id":"g1","label":"Backend","color":"blue"}]}. Use diamond for decisions, cylinder for databases, pill for start/end. Never specify coordinates for graphs. (2) CANVAS, free-form with explicit coordinates (for custom drawings/layouts): {"type":"canvas","elements":[{"type":"rect|ellipse|diamond|rounded|hexagon|cylinder","id":"r1","x":0,"y":0,"w":140,"h":60,"text":"Label","color":"blue","fill":true},{"type":"text","x":0,"y":-20,"text":"Title","size":18},{"type":"arrow|line","from":"r1","to":"r2","label":"calls","style":"dashed"} or {"type":"arrow","points":[[0,0],[100,0],[100,80]]}]}. In canvas, x/y is the top-left of a shape; connectors with from/to ids attach to the shape borders automatically; space shapes at least 60px apart.' + ' For kind "chart" this must be a JSON string: {"type":"bar|line|area|pie","xKey":"month","series":[{"key":"sales","label":"Sales"}],"data":[{"month":"Jan","sales":10}]}. For pie, use xKey as the label key and one series as the value.',
+          'The full content. ' + 'For kind "diagram" (flowcharts, architecture/system diagrams, org charts, mind maps, sequences of steps, simple drawings built from shapes, lines, text and arrows) content must be a JSON string in ONE of two forms. (1) GRAPH, auto-laid-out (preferred for flowcharts/architecture): {"type":"graph","direction":"TB"|"LR","nodes":[{"id":"a","label":"Start","shape":"pill|rect|rounded|diamond|ellipse|circle|hexagon|cylinder|parallelogram|note","color":"green|blue|amber|red|purple|teal|pink|gray","group":"g1"}],"edges":[{"from":"a","to":"b","label":"yes","style":"solid|dashed|dotted","arrow":"end|both|none"}],"groups":[{"id":"g1","label":"Backend","color":"blue"}]}. Use diamond for decisions, cylinder for databases, pill for start/end. Never specify coordinates for graphs. (2) CANVAS, free-form with explicit coordinates (for custom drawings/layouts): {"type":"canvas","elements":[{"type":"rect|ellipse|diamond|rounded|hexagon|cylinder","id":"r1","x":0,"y":0,"w":140,"h":60,"text":"Label","color":"blue","fill":true},{"type":"text","x":0,"y":-20,"text":"Title","size":18},{"type":"arrow|line","from":"r1","to":"r2","label":"calls","style":"dashed"} or {"type":"arrow","points":[[0,0],[100,0],[100,80]]}]}. In canvas, x/y is the top-left of a shape; connectors with from/to ids attach to the shape borders automatically; space shapes at least 60px apart.' + ' For kind "chart" this must be a JSON string: {"type":"bar|line|area|pie","xKey":"month","series":[{"key":"sales","label":"Sales"}],"data":[{"month":"Jan","sales":10}]}. For pie, use xKey as the label key and one series as the value. For scatter and bubble: {"type":"scatter|bubble","xKey":"price","yKey":"rating","sizeKey":"sales (bubble only)","labelKey":"name","groupKey":"optional field that colours the points","data":[{"name":"A","price":10,"rating":4.2,"sales":300}]}, where x, y and size are numbers. No other chart types exist.',
       },
     },
     required: ['title', 'kind', 'content'],
@@ -492,6 +493,12 @@ export async function runTool(
       language: args.language,
       content: String(args.content ?? ''),
       version: (existing?.version ?? 0) + 1,
+    }
+    if (kind === 'chart') {
+      let problem: string | null
+      try { problem = chartProblem(JSON.parse(artifact.content.replace(/^```json\s*|```$/g, ''))) } catch (e: any) { problem = `The content is not valid JSON: ${e.message}` }
+      // say so now, so the model can correct it instead of leaving the user an empty chart
+      if (problem) return { output: `The chart was saved (id: ${artifact.id}) but cannot be drawn. ${problem} Call create_artifact again with id "${artifact.id}" and corrected content.`, artifact }
     }
     return { output: `Artifact ${existing ? 'updated' : 'created'} successfully (id: ${artifact.id}). It is now displayed to the user.`, artifact }
   }
