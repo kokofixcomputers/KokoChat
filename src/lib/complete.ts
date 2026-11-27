@@ -1,5 +1,5 @@
 import type { Provider } from '../types'
-import { authHeaders, cleanBase, supportsReasoning } from './providers'
+import { authHeaders, cleanBase, supportsReasoning, responsesOptions } from './providers'
 import { fromAnthropic, fromOpenAI, recordUsage } from './usage'
 
 async function readError(res: Response) {
@@ -19,8 +19,9 @@ export async function completeText(p: Provider, model: string, instructions: str
     return (j.content ?? []).filter((c: any) => c.type === 'text').map((c: any) => c.text ?? '').join('').trim()
   }
   if (p.apiMode === 'responses') {
-    const body: any = { model, instructions, input, store: false }
-    if (supportsReasoning(p, model)) body.reasoning = { effort: 'low' }
+    // a short one-off: only the effort matters, not the reasoning itself
+    const { include: _, reasoning, ...options } = responsesOptions(p, supportsReasoning(p, model), 'low')
+    const body: any = { model, instructions, input, ...options, ...(reasoning ? { reasoning: { effort: 'low' } } : {}) }
     const res = await fetch(`${cleanBase(p.baseUrl)}/responses`, { method: 'POST', headers: authHeaders(p), body: JSON.stringify(body), signal })
     if (res.ok) {
       const j = await res.json()

@@ -1,6 +1,6 @@
 import type { Block, ChatSummary, Effort, McpServer, Message, Provider, Settings } from '../types'
 import { buildMcp } from './mcp'
-import { authHeaders, cleanBase, supportsReasoning } from './providers'
+import { authHeaders, cleanBase, supportsReasoning, responsesOptions } from './providers'
 import { ASK_USER, CREATE_ARTIFACT, GENERATE_IMAGE, GENERATE_VIDEO, WEB_SEARCH, runTool, systemPrompt, type ToolDef } from './tools'
 import { pickProvider } from './speech'
 import { uid } from './utils'
@@ -250,16 +250,11 @@ async function runResponses(o: RunOpts) {
   const shotMsgs: { content: any[] }[] = []
 
   for (let step = 0; step < stepsFor(o); step++) {
-    const body: any = { model: o.model, input: convo, instructions, stream: true, store: false }
+    const body: any = { model: o.model, input: convo, instructions, stream: true, ...responsesOptions(p, supportsReasoning(p, o.model), o.effort) }
     const outItems: any[] = []
     if (tools.length) body.tools = tools.map((t) => ({ type: 'function', ...t, strict: false }))
     const tc = step === 0 ? initialToolChoice(o, tools, 'responses') : undefined
     if (tc) body.tool_choice = tc
-    if (supportsReasoning(p, o.model)) {
-      body.reasoning = { summary: 'auto' }
-      body.include = ['reasoning.encrypted_content']
-      if (o.effort !== 'auto') body.reasoning.effort = o.effort
-    }
     o.meter?.begin(body)
     const res = await post(p, '/responses', body, o.signal)
     const calls: Pending[] = []

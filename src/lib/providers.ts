@@ -130,6 +130,23 @@ export async function fetchModels(p: Provider): Promise<ModelInfo[]> {
   return list
 }
 
+/** Groq, whether it was added from the list or typed in as a custom provider. */
+const isGroq = (p: Provider) => p.preset === 'groq' || /\/\/api\.groq\.com\//.test(p.baseUrl)
+
+/**
+ * The parts of a Responses API request that not every server takes. Groq rejects the whole request over `store` or
+ * `include` (https://console.groq.com/docs/responses-api), and its docs only show `reasoning.effort`.
+ */
+export function responsesOptions(p: Provider, reasoning: boolean, effort: string): Record<string, unknown> {
+  if (isGroq(p)) {
+    // it has no "minimal": low is the closest
+    return reasoning && effort !== 'auto' ? { reasoning: { effort: effort === 'minimal' ? 'low' : effort } } : {}
+  }
+  if (!reasoning) return { store: false }
+  // the encrypted reasoning lets a tool loop carry its thinking forward without the server storing anything
+  return { store: false, reasoning: { summary: 'auto', ...(effort !== 'auto' ? { effort } : {}) }, include: ['reasoning.encrypted_content'] }
+}
+
 /** Heuristic: does this model accept a reasoning effort parameter? */
 export function supportsReasoning(p: Provider, model: string) {
   if (p.forceReasoning) return true
